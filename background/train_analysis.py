@@ -7,9 +7,10 @@ import scipy
 import matplotlib.dates as mdates
 from matplotlib.colors import BoundaryNorm
 
-def train_analysis(data='traindata_total.csv',
+def train_analysis(data='data/traindata_total.csv',
                    start_period='2025-12-15',
-                   end_period='2026-04-30'):
+                   end_period='2026-04-30',
+                   verbose = False):
 
     train = pd.read_csv(data)
 
@@ -19,13 +20,6 @@ def train_analysis(data='traindata_total.csv',
         (train['Service:Date'] >= start_period) &
         (train['Service:Date'] <= end_period)
     ].copy()
-
-# def train_analysis(data='traindata_total.csv', start_period='2025-12-15', end_period='2026-04-30'):
-
-#     train = pd.read_csv(data)
-
-#     # Data period selection
-#     train = train[(train['Service:Date'] > start_period) & (train['Service:Date'] < end_period)]
 
     # Data cleaning & column modification
     train = train.drop(columns=['index', 'Service:RDT-ID'])
@@ -111,17 +105,38 @@ def train_analysis(data='traindata_total.csv',
 # -------------------------------------------------- #
 # ---- 4.1 - Delays and cancellations in numbers --- #
 # -------------------------------------------------- #
+
     delayed_trains = (len(train[(train['arrival_delayed'] == True) | (train['departure_delayed'] == True)])) / len(train) * 100
     delayed_operations = len(train[(train['arrival_delayed_3'] == True) | (train['departure_delayed_3'] == True)]) / len(train) * 100
     total_cancellations = len(train[train['cancelled'] == True])
     total_cancellations_perct = total_cancellations / len(train) * 100
 
+    # Relative delay and cancellations
+    total_vehicles = len(train)
+    total_days = train['Date'].dt.normalize().nunique()
+
+    total_delay_minutes = (
+        train['arr_delay'].clip(lower=0).fillna(0).sum() +
+        train['dep_delay'].clip(lower=0).fillna(0).sum()
+    )
+
+    delay_per_vehicle = total_delay_minutes / total_vehicles
+    delay_per_day = total_delay_minutes / total_days
+    cancellations_per_100_vehicles = total_cancellations / total_vehicles * 100
+    cancellations_per_day = total_cancellations / total_days
 
     print(f"DELAYS AND CANCELLATIONS BETWEEN: {start_period} AND {end_period}")
     print(f"Number of complete cancellations: {total_cancellations}")
     print(f"    {delayed_trains:.1f}% of trains were delayed.")
     print(f"    {delayed_operations:.1f}% of train operations were delayed by more than 3 minutes.")
     print(f"    {total_cancellations_perct:.1f}% of trains were cancelled.")
+
+    print("\nRELATIVE PERFORMANCE")
+    print(f"    Delay per vehicle: {delay_per_vehicle:.2f} minutes")
+    print(f"    Delay per day: {delay_per_day:.1f} minutes")
+    print(f"    Cancellations per 100 vehicles: {cancellations_per_100_vehicles:.2f}")
+    print(f"    Cancellations per day: {cancellations_per_day:.2f}")
+
 
 # ---- Delays with 0 and 3 minute thresholds over analysis time
     daily_delay = train.groupby('Date').agg(
@@ -864,4 +879,28 @@ def train_analysis(data='traindata_total.csv',
     plt.tight_layout()
     plt.show()
 
-train_analysis()
+    results = {
+        'Vehicles': total_vehicles,
+        'Days': total_days,
+        'Delayed vehicles (%)': delayed_trains,
+        'Delayed operations (%)': delayed_operations,
+        'Delay per vehicle (min)': delay_per_vehicle,
+        'Delay per day (min)': delay_per_day,
+        'Cancellations per 100 vehicles': cancellations_per_100_vehicles,
+        'Cancellations per day': cancellations_per_day
+    }
+
+    if verbose:
+        print(f"DELAYS AND CANCELLATIONS BETWEEN: {start_period} AND {end_period}")
+        print(f"Number of complete cancellations: {total_cancellations}")
+        print(f"    {delayed_trains:.1f}% of trains were delayed.")
+        print(f"    {delayed_operations:.1f}% of train operations were delayed by more than 3 minutes.")
+        print(f"    {total_cancellations_perct:.1f}% of trains were cancelled.")
+
+        print("\nRELATIVE PERFORMANCE")
+        print(f"    Delay per vehicle: {delay_per_vehicle:.2f} minutes")
+        print(f"    Delay per day: {delay_per_day:.1f} minutes")
+        print(f"    Cancellations per 100 vehicles: {cancellations_per_100_vehicles:.2f}")
+        print(f"    Cancellations per day: {cancellations_per_day:.2f}")
+
+    return results
