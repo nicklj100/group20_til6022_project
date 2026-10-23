@@ -2,7 +2,7 @@
 Run to import the data as raw datafiles and select the specific datapoints used in the analysis period and analysis location. 
 
 Performed offline as dataset is large.
-""""
+"""
 
 import pandas as pd
 
@@ -23,10 +23,29 @@ knmi_selected = knmi[(knmi['YYYYMMDD'] >= 20260101) & (knmi['YYYYMMDD'] <= 20260
 knmi_selected = knmi_selected.reset_index(drop = True)
 knmi_selected.to_csv('weather_selected.csv', index=False)
 
-# Train dataframe
-df = = pd.read_csv('services-2026-01.csv')
+# Train dataframe for specific period
+df = pd.read_csv('raw data/services-2026-01.csv')
 
 df_utrecht = df[df['Stop:Station name'] == 'Utrecht Centraal']
 df_utrecht=df_utrecht.reset_index()
 df_utrecht
 df_utrecht.to_csv('traindata_selected.csv', index=False)
+
+# Train dataframe for baseline
+files = [
+    'raw data/services-2025-12.csv',
+    'raw data/services-2026-01.csv',
+    'raw data/services-2026-02.csv',
+    'raw data/services-2026-03.csv',
+    'raw data/services-2026-04.csv'
+]
+
+df_total = pd.concat(
+    [pd.read_csv(file) for file in files],
+    ignore_index=True
+)
+
+df_utrecht_total = df_total[df_total['Stop:Station name'] == 'Utrecht Centraal']
+df_utrecht_total=df_utrecht_total.reset_index()
+
+df_utrecht_total.to_csv('traindata_total.csv', index=False)
