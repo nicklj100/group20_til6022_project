@@ -1,3 +1,4 @@
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -7,10 +8,10 @@ import scipy
 import matplotlib.dates as mdates
 from matplotlib.colors import BoundaryNorm
 
-def train_analysis(data='data/traindata_total.csv',
-                   start_period='2025-12-15',
-                   end_period='2026-04-30',
-                   verbose = False):
+
+def load_train_data(data='data/traindata_total.csv',
+                    start_period='2025-12-15',
+                    end_period='2026-04-30'):
 
     train = pd.read_csv(data)
 
@@ -24,35 +25,36 @@ def train_analysis(data='data/traindata_total.csv',
     # Data cleaning & column modification
     train = train.drop(columns=['index', 'Service:RDT-ID'])
     train = train.rename(columns={
-            'Service:Type': 'Type',
-            'Service:Date': 'Date',
-            'Stop:Arrival time': 'scheduled_arrival',
-            'Stop:Departure time': 'scheduled_departure',
-            'Stop:Arrival cancelled': 'arr_cancelled',
-            'Stop:Departure cancelled': 'dep_cancelled',
-            'Stop:Arrival delay': 'arr_delay',
-            'Stop:Departure delay': 'dep_delay'
-        })
+        'Service:Type': 'Type',
+        'Service:Date': 'Date',
+        'Stop:Arrival time': 'scheduled_arrival',
+        'Stop:Departure time': 'scheduled_departure',
+        'Stop:Arrival cancelled': 'arr_cancelled',
+        'Stop:Departure cancelled': 'dep_cancelled',
+        'Stop:Arrival delay': 'arr_delay',
+        'Stop:Departure delay': 'dep_delay'
+    })
 
-    train.columns = (train.columns
-                        .str.replace('Service:', '', regex=False)
-                        .str.replace('Stop:', '', regex=False)
-                        .str.replace('RDT-ID', 'train_id', regex=False))
+    train.columns = (
+        train.columns
+        .str.replace('Service:', '', regex=False)
+        .str.replace('Stop:', '', regex=False)
+        .str.replace('RDT-ID', 'train_id', regex=False)
+    )
 
     cols_drop = [
-            'Completely cancelled', 'Partly cancelled', 'Maximum delay',
-            'Train number', 'Station name', 'Station code',
-            'Platform change', 'Planned platform', 'Actual platform', 'Company'
-        ]
+        'Completely cancelled', 'Partly cancelled', 'Maximum delay',
+        'Train number', 'Station name', 'Station code',
+        'Platform change', 'Planned platform', 'Actual platform', 'Company'
+    ]
 
     train = train.drop(columns=cols_drop)
     train = train[train['Type'].isin(['Intercity', 'Sprinter'])]
 
     time_cols = ['scheduled_arrival', 'scheduled_departure']
     train[time_cols] = train[time_cols].apply(
-            lambda col: pd.to_datetime(col, utc=True).dt.strftime('%H:%M')
-        )
-
+        lambda col: pd.to_datetime(col, utc=True).dt.strftime('%H:%M')
+    )
 
     for time, delay in [
         ('arrival', 'arr_delay'),
@@ -67,27 +69,29 @@ def train_analysis(data='data/traindata_total.csv',
             pd.to_timedelta(train[delay], unit='m')
         )
 
-        train[f'scheduled_{time}'] = train[f'scheduled_{time}'].dt.strftime('%H:%M')
-        train[f'actual_{time}'] = train[f'actual_{time}'].dt.strftime('%H:%M')
-
+        train[f'scheduled_{time}'] = (
+            train[f'scheduled_{time}'].dt.strftime('%H:%M')
+        )
+        train[f'actual_{time}'] = (
+            train[f'actual_{time}'].dt.strftime('%H:%M')
+        )
 
     train['arr_hour'] = pd.to_datetime(
-            train['actual_arrival'], format='%H:%M', errors='coerce'
-        ).dt.hour
+        train['actual_arrival'], format='%H:%M', errors='coerce'
+    ).dt.hour
 
     train['dep_hour'] = pd.to_datetime(
-            train['actual_departure'], format='%H:%M', errors='coerce'
-        ).dt.hour
+        train['actual_departure'], format='%H:%M', errors='coerce'
+    ).dt.hour
 
     train = train[
-            train['dep_hour'].between(5, 22) &
-            train['arr_hour'].between(5, 22)
-        ]
+        train['dep_hour'].between(5, 22) &
+        train['arr_hour'].between(5, 22)
+    ]
 
     train = train.sort_values(
-            ['Date', 'actual_arrival']
-        ).reset_index(drop=True)
-
+        ['Date', 'actual_arrival']
+    ).reset_index(drop=True)
 
     # Initializing new variable to flag delay and delay with a three minute threshold
     train['arrival_delayed'] = train['arr_delay'] > 0
@@ -95,19 +99,45 @@ def train_analysis(data='data/traindata_total.csv',
     train['arrival_delayed_3'] = train['arr_delay'] >= 3
     train['departure_delayed_3'] = train['dep_delay'] >= 3
 
-    # Train is cancelled if either arrival or departure is cancelled. Fill NaN values with False for this.
-    train['cancelled'] = train['arr_cancelled'].fillna(False) | train['dep_cancelled'].fillna(False)
+    # Train is cancelled if either arrival or departure is cancelled.
+    # Fill NaN values with False for this.
+    train['cancelled'] = (
+        train['arr_cancelled'].fillna(False) |
+        train['dep_cancelled'].fillna(False)
+    )
 
-# ----------------------------- #
-# ---- Data Analayis start ---- #
-# ----------------------------- #
+    return train
 
-# -------------------------------------------------- #
-# ---- 4.1 - Delays and cancellations in numbers --- #
-# -------------------------------------------------- #
 
-    delayed_trains = (len(train[(train['arrival_delayed'] == True) | (train['departure_delayed'] == True)])) / len(train) * 100
-    delayed_operations = len(train[(train['arrival_delayed_3'] == True) | (train['departure_delayed_3'] == True)]) / len(train) * 100
+def train_analysis(data='data/traindata_total.csv',
+                   start_period='2025-12-15',
+                   end_period='2026-04-30',
+                   verbose=False):
+
+    train = load_train_data(
+        data=data,
+        start_period=start_period,
+        end_period=end_period
+    )
+
+    # -------------------------------------------------- #
+    # ---- 4.1 - Delays and cancellations in numbers --- #
+    # -------------------------------------------------- #
+
+    delayed_trains = (
+        len(train[
+            (train['arrival_delayed'] == True) |
+            (train['departure_delayed'] == True)
+        ]) / len(train) * 100
+    )
+
+    delayed_operations = (
+        len(train[
+            (train['arrival_delayed_3'] == True) |
+            (train['departure_delayed_3'] == True)
+        ]) / len(train) * 100
+    )
+
     total_cancellations = len(train[train['cancelled'] == True])
     total_cancellations_perct = total_cancellations / len(train) * 100
 
@@ -125,20 +155,20 @@ def train_analysis(data='data/traindata_total.csv',
     cancellations_per_100_vehicles = total_cancellations / total_vehicles * 100
     cancellations_per_day = total_cancellations / total_days
 
-    print(f"DELAYS AND CANCELLATIONS BETWEEN: {start_period} AND {end_period}")
-    print(f"Number of complete cancellations: {total_cancellations}")
-    print(f"    {delayed_trains:.1f}% of trains were delayed.")
-    print(f"    {delayed_operations:.1f}% of train operations were delayed by more than 3 minutes.")
-    print(f"    {total_cancellations_perct:.1f}% of trains were cancelled.")
+    if verbose:
+        print(f"DELAYS AND CANCELLATIONS BETWEEN: {start_period} AND {end_period}")
+        print(f"Number of complete cancellations: {total_cancellations}")
+        print(f"    {delayed_trains:.1f}% of trains were delayed.")
+        print(f"    {delayed_operations:.1f}% of train operations were delayed by more than 3 minutes.")
+        print(f"    {total_cancellations_perct:.1f}% of trains were cancelled.")
 
-    print("\nRELATIVE PERFORMANCE")
-    print(f"    Delay per vehicle: {delay_per_vehicle:.2f} minutes")
-    print(f"    Delay per day: {delay_per_day:.1f} minutes")
-    print(f"    Cancellations per 100 vehicles: {cancellations_per_100_vehicles:.2f}")
-    print(f"    Cancellations per day: {cancellations_per_day:.2f}")
+        print("\nRELATIVE PERFORMANCE")
+        print(f"    Delay per vehicle: {delay_per_vehicle:.2f} minutes")
+        print(f"    Delay per day: {delay_per_day:.1f} minutes")
+        print(f"    Cancellations per 100 vehicles: {cancellations_per_100_vehicles:.2f}")
+        print(f"    Cancellations per day: {cancellations_per_day:.2f}")
 
-
-# ---- Delays with 0 and 3 minute thresholds over analysis time
+    # ---- Delays with 0 and 3 minute thresholds over analysis time
     daily_delay = train.groupby('Date').agg(
         arrival_delayed=('arrival_delayed', 'mean'),
         departure_delayed=('departure_delayed', 'mean'),
@@ -162,32 +192,51 @@ def train_analysis(data='data/traindata_total.csv',
     fig, ax = plt.subplots(1, 2, figsize=(20, 6))
 
     # 0-minute threshold
-    ax[0].plot(daily_delay.index, daily_delay['arrival_delayed'], label='Arrival Delays')
-    ax[0].plot(daily_delay.index, daily_delay['departure_delayed'], label='Departure Delays')
+    ax[0].plot(
+        daily_delay.index, daily_delay['arrival_delayed'],
+        label='Arrival Delays'
+    )
+    ax[0].plot(
+        daily_delay.index, daily_delay['departure_delayed'],
+        label='Departure Delays'
+    )
 
-    ax[0].axhline(average_arrival_delay, linestyle='--',
-                color=ax[0].lines[0].get_color(),
-                label=f'Average Arrival Delay: {average_arrival_delay:.2f}%')
-    ax[0].axhline(average_departure_delay, linestyle='--',
-                color=ax[0].lines[1].get_color(),
-                label=f'Average Departure Delay: {average_departure_delay:.2f}%')
+    ax[0].axhline(
+        average_arrival_delay, linestyle='--',
+        color=ax[0].lines[0].get_color(),
+        label=f'Average Arrival Delay: {average_arrival_delay:.2f}%'
+    )
+    ax[0].axhline(
+        average_departure_delay, linestyle='--',
+        color=ax[0].lines[1].get_color(),
+        label=f'Average Departure Delay: {average_departure_delay:.2f}%'
+    )
 
     ax[0].set_xlabel('Date')
     ax[0].set_ylabel('Mean Percentage of Delayed Trains')
     ax[0].set_title('Delays with 0 Minute Threshold')
     ax[0].legend()
 
-
     # 3-minute threshold
-    ax[1].plot(daily_delay.index, daily_delay['arrival_delayed_3'], label='Arrival Delays')
-    ax[1].plot(daily_delay.index, daily_delay['departure_delayed_3'], label='Departure Delays')
+    ax[1].plot(
+        daily_delay.index, daily_delay['arrival_delayed_3'],
+        label='Arrival Delays'
+    )
+    ax[1].plot(
+        daily_delay.index, daily_delay['departure_delayed_3'],
+        label='Departure Delays'
+    )
 
-    ax[1].axhline(average_arrival_delay_3, linestyle='--',
-                color=ax[1].lines[0].get_color(),
-                label=f'Average Arrival Delay: {average_arrival_delay_3:.2f}%')
-    ax[1].axhline(average_departure_delay_3, linestyle='--',
-                color=ax[1].lines[1].get_color(),
-                label=f'Average Departure Delay: {average_departure_delay_3:.2f}%')
+    ax[1].axhline(
+        average_arrival_delay_3, linestyle='--',
+        color=ax[1].lines[0].get_color(),
+        label=f'Average Arrival Delay: {average_arrival_delay_3:.2f}%'
+    )
+    ax[1].axhline(
+        average_departure_delay_3, linestyle='--',
+        color=ax[1].lines[1].get_color(),
+        label=f'Average Departure Delay: {average_departure_delay_3:.2f}%'
+    )
 
     ax[1].set_xlabel('Date')
     ax[1].set_ylabel('Mean Percentage of Delayed Trains')
@@ -195,8 +244,10 @@ def train_analysis(data='data/traindata_total.csv',
     ax[1].legend()
 
     max_value = max(
-        daily_delay[['arrival_delayed', 'departure_delayed',
-                    'arrival_delayed_3', 'departure_delayed_3']].max().max(),
+        daily_delay[
+            ['arrival_delayed', 'departure_delayed',
+             'arrival_delayed_3', 'departure_delayed_3']
+        ].max().max(),
         average_arrival_delay,
         average_departure_delay,
         average_arrival_delay_3,
@@ -209,9 +260,10 @@ def train_analysis(data='data/traindata_total.csv',
     plt.tight_layout()
     plt.show()
 
-# ----------------------------------------------- #
-# ---- 4.2 - Spread of delays using boxplots ---- #
-# ----------------------------------------------- #
+    # ----------------------------------------------- #
+    # ---- 4.2 - Spread of delays using boxplots ---- #
+    # ----------------------------------------------- #
+
     train['week'] = train['Date'].dt.to_period('W').astype(str)
 
     # Filter delays greater than 3 minutes
@@ -231,7 +283,7 @@ def train_analysis(data='data/traindata_total.csv',
     ax[0].set_title('Spread of Arrival delay > 3 minutes per week')
     ax[0].set_xlabel('')
     ax[0].set_ylabel('Arrival delay (minutes)')
-    ax[0].tick_params(axis='x', bottom = False, labelbottom = False)
+    ax[0].tick_params(axis='x', bottom=False, labelbottom=False)
 
     sns.boxplot(
         data=train_dep_delayed,
@@ -243,7 +295,7 @@ def train_analysis(data='data/traindata_total.csv',
     ax[1].set_title('Spread of Departure delay > 3 minutes per week')
     ax[1].set_xlabel('')
     ax[1].set_ylabel('Departure delay (minutes)')
-    ax[1].tick_params(axis='x', bottom = False, labelbottom = False)
+    ax[1].tick_params(axis='x', bottom=False, labelbottom=False)
 
     # Formatting
     for a in ax:
@@ -252,20 +304,23 @@ def train_analysis(data='data/traindata_total.csv',
     plt.tight_layout()
     plt.show()
 
-# ----------------------------- #
-# ---- 4.3 Delays per hour ---- #
-# ----------------------------- #
+    # ----------------------------- #
+    # ---- 4.3 Delays per hour ---- #
+    # ----------------------------- #
+
     hourly_train = train.groupby('arr_hour').agg(
-        arrival_mean = ('arr_delay', 'mean'),
-        departure_mean = ('dep_delay', 'mean'),
-        arrival_delayed = ('arrival_delayed', 'mean'),
-        departure_delayed = ('departure_delayed', 'mean'),
-        arrival_delayed_3 = ('arrival_delayed_3', 'mean'),
-        departure_delayed_3 = ('departure_delayed_3', 'mean'),
-        cancelled = ('cancelled', 'mean')
+        arrival_mean=('arr_delay', 'mean'),
+        departure_mean=('dep_delay', 'mean'),
+        arrival_delayed=('arrival_delayed', 'mean'),
+        departure_delayed=('departure_delayed', 'mean'),
+        arrival_delayed_3=('arrival_delayed_3', 'mean'),
+        departure_delayed_3=('departure_delayed_3', 'mean'),
+        cancelled=('cancelled', 'mean')
     )
 
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(
+        3, 1, figsize=(10, 12), sharex=True
+    )
 
     # Plot 1: Average delay
     ax1.plot(
@@ -302,7 +357,6 @@ def train_analysis(data='data/traindata_total.csv',
         label='Departure'
     )
 
-
     ax2.plot(
         hourly_train.index,
         hourly_train['arrival_delayed_3'] * 100,
@@ -324,7 +378,6 @@ def train_analysis(data='data/traindata_total.csv',
     ax2.set_xticks(range(5, 23))
     ax2.grid(alpha=0.3)
 
-
     # Plot 3: Average cancellations
     ax3.plot(
         hourly_train.index,
@@ -343,13 +396,20 @@ def train_analysis(data='data/traindata_total.csv',
     plt.tight_layout()
     plt.show()
 
-# ---- 4.4 - Punctuality indicator ---- #
-    train_punctual = train[train['cancelled'] == False] # Keeping only non-cancelled trains for punctuality analysis
+    # ---- 4.4 - Punctuality indicator ----
+    train_punctual = train[train['cancelled'] == False].copy()
+    # Keeping only non-cancelled trains for punctuality analysis
 
-    train_punctual['delay_status'] = train_punctual['arr_delay'].apply(lambda x: 'On time' if x <= 0 else ('Delayed' if x <= 3 else 'Significantly Delayed'))
+    train_punctual['delay_status'] = train_punctual['arr_delay'].apply(
+        lambda x: 'On time' if x <= 0
+        else ('Delayed' if x <= 3 else 'Significantly Delayed')
+    )
     train_punctual['arr_punctual'] = train_punctual['arr_delay'] < 3
 
-    train_punctual["dep_delay_status"] = train_punctual["dep_delay"].apply(lambda x: "On time" if x <= 0 else ("Delayed" if x < 3 else "Significantly Delayed"))
+    train_punctual["dep_delay_status"] = train_punctual["dep_delay"].apply(
+        lambda x: "On time" if x <= 0
+        else ("Delayed" if x < 3 else "Significantly Delayed")
+    )
     train_punctual["dep_punctual"] = train_punctual["dep_delay"] < 3
 
     # Plot train punctuality per hour and weekday
@@ -365,19 +425,35 @@ def train_analysis(data='data/traindata_total.csv',
         + train_punctual["dep_punctual"].count()
     ) * 100
 
-
     # Plot 1: Punctuality per hour
-    arr_punctual = train_punctual.groupby("arr_hour")["arr_punctual"].mean() * 100
-    dep_punctual = train_punctual.groupby("dep_hour")["dep_punctual"].mean() * 100
+    arr_punctual = (
+        train_punctual.groupby("arr_hour")["arr_punctual"].mean() * 100
+    )
+    dep_punctual = (
+        train_punctual.groupby("dep_hour")["dep_punctual"].mean() * 100
+    )
 
-    ax[0].plot(arr_punctual.index, arr_punctual.values,
-            marker="o", label="Arrival")
-    ax[0].plot(dep_punctual.index, dep_punctual.values,
-            marker="o", label="Departure")
+    ax[0].plot(
+        arr_punctual.index, arr_punctual.values,
+        marker="o", label="Arrival"
+    )
+    ax[0].plot(
+        dep_punctual.index, dep_punctual.values,
+        marker="o", label="Departure"
+    )
 
-    ax[0].axhline(arr_mean, linestyle="--", color="C0", label=f"Mean arrival ({arr_mean:.1f}%)")
-    ax[0].axhline(dep_mean, linestyle="--", color="C1",label=f"Mean departure ({dep_mean:.1f}%)")
-    ax[0].axhline(tot_mean, linestyle="--", color="C2",label=f"Mean punctuality ({tot_mean:.1f}%)")
+    ax[0].axhline(
+        arr_mean, linestyle="--", color="C0",
+        label=f"Mean arrival ({arr_mean:.1f}%)"
+    )
+    ax[0].axhline(
+        dep_mean, linestyle="--", color="C1",
+        label=f"Mean departure ({dep_mean:.1f}%)"
+    )
+    ax[0].axhline(
+        tot_mean, linestyle="--", color="C2",
+        label=f"Mean punctuality ({tot_mean:.1f}%)"
+    )
 
     ax[0].set_xlabel("Hour")
     ax[0].set_ylabel("Punctual trains (%)")
@@ -387,13 +463,14 @@ def train_analysis(data='data/traindata_total.csv',
     ax[0].grid()
     ax[0].legend()
 
-
     # Plot 2: Punctuality per weekday
     train_punctual["Date"] = pd.to_datetime(train_punctual["Date"])
     train_punctual["weekday"] = train_punctual["Date"].dt.day_name()
 
-    weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday",
-        "Friday", "Saturday", "Sunday"]
+    weekday_order = [
+        "Monday", "Tuesday", "Wednesday", "Thursday",
+        "Friday", "Saturday", "Sunday"
+    ]
 
     weekly = train_punctual.groupby("weekday")[
         ["arr_punctual", "dep_punctual"]
@@ -426,16 +503,29 @@ def train_analysis(data='data/traindata_total.csv',
         )
 
     # Overall mean lines
-    ax[1].axhline(arr_mean, linestyle="--", color="C0", label=f"Mean arrival ({arr_mean:.1f}%)", zorder=3)
-    ax[1].axhline(dep_mean, linestyle="--", color="C1", label=f"Mean departure ({dep_mean:.1f}%)", zorder=3)
-    ax[1].axhline(tot_mean, linestyle="--", color="C2",label=f"Mean punctuality ({tot_mean:.1f}%)")
+    ax[1].axhline(
+        arr_mean, linestyle="--", color="C0",
+        label=f"Mean arrival ({arr_mean:.1f}%)", zorder=3
+    )
+    ax[1].axhline(
+        dep_mean, linestyle="--", color="C1",
+        label=f"Mean departure ({dep_mean:.1f}%)", zorder=3
+    )
+    ax[1].axhline(
+        tot_mean, linestyle="--", color="C2",
+        label=f"Mean punctuality ({tot_mean:.1f}%)"
+    )
 
     ax[1].set_xlabel("Day of the week")
     ax[1].set_ylabel("Punctual trains (%)")
     ax[1].set_title("Train punctuality per weekday")
     ax[1].set_xticks(list(x))
     ax[1].set_xticklabels(weekday_order, rotation=45, ha="right")
-    ax[1].set_ylim(min(weekly["arr_punctual"].min(), weekly["dep_punctual"].min()) - 5, 100)
+    ax[1].set_ylim(
+        min(weekly["arr_punctual"].min(),
+            weekly["dep_punctual"].min()) - 5,
+        100
+    )
     ax[1].grid(axis="y", zorder=0)
     ax[1].legend()
 
@@ -443,44 +533,93 @@ def train_analysis(data='data/traindata_total.csv',
     plt.show()
 
     # Print punctuality statistics
-    train_punctual["both_punctual"] = (train_punctual["arr_punctual"] & train_punctual["dep_punctual"])
+    train_punctual["both_punctual"] = (
+        train_punctual["arr_punctual"] &
+        train_punctual["dep_punctual"]
+    )
     total_punctuality = train_punctual["both_punctual"].mean() * 100
 
-    print(f"Trains punctual at both arrival and departure:  {total_punctuality:.2f}%")
+    print(
+        f"Trains punctual at both arrival and departure:  "
+        f"{total_punctuality:.2f}%"
+    )
     print(f"Trains punctual at arrival:                     {arr_mean:.2f}%")
     print(f"Trains punctual at departure:                   {dep_mean:.2f}%")
 
-# -------------------------------- #
-# ---- 4.5 - Delay absorption ---- #
-# -------------------------------- #
+    # -------------------------------- #
+    # ---- 4.5 - Delay absorption ---- #
+    # -------------------------------- #
+
     # Delay change statistic
     # Total set
-    train_punctual['delay_change'] = train_punctual['arr_delay'] - train_punctual['dep_delay']
+    train_punctual['delay_change'] = (
+        train_punctual['arr_delay'] - train_punctual['dep_delay']
+    )
 
     mean_delay_change = train_punctual['delay_change'].mean().round(1)
 
     if mean_delay_change > 0:
-        print(f"The mean train delay change in total set equals: {mean_delay_change} minutes (delays absorbed)")
+        print(
+            f"The mean train delay change in total set equals: "
+            f"{mean_delay_change} minutes (delays absorbed)"
+        )
     elif mean_delay_change == 0:
-        print(f"The mean train delay change in total set equals: {mean_delay_change} minutes (no change)")
+        print(
+            f"The mean train delay change in total set equals: "
+            f"{mean_delay_change} minutes (no change)"
+        )
     else:
-        print(f"The mean train delay change in total set equals: {mean_delay_change} minutes (delays accumulated)")
+        print(
+            f"The mean train delay change in total set equals: "
+            f"{mean_delay_change} minutes (delays accumulated)"
+        )
     print("")
 
     # Selected set -> late arrivals only
-    delay_comparison = train_punctual.dropna(subset = ['arr_delay', 'dep_delay']).copy() # Filter for arrivals and departures both only -> no arrival or departure solo as a delay metric.
-    delay_comparison = delay_comparison.drop(columns = ['week', 'delay_status', 'arr_punctual', 'dep_delay_status', 'dep_punctual','both_punctual'])
-    delay_comparison = delay_comparison[~((delay_comparison["arr_delay"] == 0) & (delay_comparison['dep_delay'] == 0))]               # Filter for delays actually being present
-    mean_delay_change_comparison = delay_comparison['delay_change'].mean().round(1)
+    delay_comparison = train_punctual.dropna(
+        subset=['arr_delay', 'dep_delay']
+    ).copy()
+    # Filter for arrivals and departures both only -> no arrival or
+    # departure solo as a delay metric.
+    delay_comparison = delay_comparison.drop(columns=[
+        'week', 'delay_status', 'arr_punctual',
+        'dep_delay_status', 'dep_punctual', 'both_punctual'
+    ])
+
+    # Filter for delays actually being present
+    delay_comparison = delay_comparison[
+        ~(
+            (delay_comparison["arr_delay"] == 0) &
+            (delay_comparison['dep_delay'] == 0)
+        )
+    ]
+
+    mean_delay_change_comparison = (
+        delay_comparison['delay_change'].mean().round(1)
+    )
 
     if mean_delay_change_comparison > 0:
-        print(f"The mean train delay change in selected set equals: {mean_delay_change_comparison} minutes (delays absorbed)")
+        print(
+            f"The mean train delay change in selected set equals: "
+            f"{mean_delay_change_comparison} minutes (delays absorbed)"
+        )
     elif mean_delay_change_comparison == 0:
-        print(f"The mean train delay change in selected set equals: {mean_delay_change_comparison} minutes (no change)")
+        print(
+            f"The mean train delay change in selected set equals: "
+            f"{mean_delay_change_comparison} minutes (no change)"
+        )
     else:
-        print(f"The mean train delay change in selected set equals: {mean_delay_change_comparison} minutes (delays accumulated)")
+        print(
+            f"The mean train delay change in selected set equals: "
+            f"{mean_delay_change_comparison} minutes (delays accumulated)"
+        )
 
-    print(f"The maximum delay accumulated is {delay_comparison['delay_change'].min()} minutes and the maximum delay absorbed is {delay_comparison['delay_change'].max()} minutes")
+    print(
+        f"The maximum delay accumulated is "
+        f"{delay_comparison['delay_change'].min()} minutes and "
+        f"the maximum delay absorbed is "
+        f"{delay_comparison['delay_change'].max()} minutes"
+    )
 
     # -- Absorption factor! -- #
 
@@ -492,7 +631,8 @@ def train_analysis(data='data/traindata_total.csv',
     )
 
     overall_absorption = (
-        (delay_comparison["arr_delay"].sum() - delay_comparison["dep_delay"].sum())
+        (delay_comparison["arr_delay"].sum()
+         - delay_comparison["dep_delay"].sum())
         / delay_comparison["arr_delay"].sum()
         * 100
     )
@@ -501,18 +641,19 @@ def train_analysis(data='data/traindata_total.csv',
 
     # Net delay change for all trains (dep & arr)
     overall_net_delay_change = (
-        (delay_comparison["dep_delay"].sum() - delay_comparison["arr_delay"].sum())
+        (delay_comparison["dep_delay"].sum()
+         - delay_comparison["arr_delay"].sum())
         / delay_comparison["train_id"].count()
     )
 
     print(f"Overall net delay change: {overall_net_delay_change:.2f} minutes per train")
 
-
     # Absorption/accumulation of delays of late-arriving trains
     valid_delays = delay_comparison[delay_comparison["arr_delay"] > 0]
 
     late_absorption = (
-        (valid_delays["arr_delay"].sum() - valid_delays["dep_delay"].sum())
+        (valid_delays["arr_delay"].sum()
+         - valid_delays["dep_delay"].sum())
         / valid_delays["arr_delay"].sum()
         * 100
     )
@@ -525,11 +666,21 @@ def train_analysis(data='data/traindata_total.csv',
     net_delay_change = total_dep_delay - total_arr_delay
 
     if net_delay_change < 0:
-        print(f"Over the period: The total departure delay was {abs(net_delay_change):.1f} minutes lower than the total arrival delay")
-        print(f"Per day:         The total departure delay was {abs(net_delay_change/train['Date'].nunique()):.1f} minutes lower than the total arrival delay")
+        print(
+            f"Over the period: The total departure delay was "
+            f"{abs(net_delay_change):.1f} minutes lower than "
+            f"the total arrival delay"
+        )
+        print(
+            f"Per day:         The total departure delay was "
+            f"{abs(net_delay_change / train['Date'].nunique()):.1f} "
+            f"minutes lower than the total arrival delay"
+        )
     else:
-        print(f"The total departure delay was {net_delay_change:.2f} minutes higher than the total arrival delay over the period")
-
+        print(
+            f"The total departure delay was {net_delay_change:.2f} "
+            f"minutes higher than the total arrival delay over the period"
+        )
 
     # Select all trains and late arrivals
     all_trains = delay_comparison
@@ -542,34 +693,49 @@ def train_analysis(data='data/traindata_total.csv',
             # Net delay change for all trains (minutes per train)
             weekday_metric = (
                 data.groupby('weekday')
-                .apply(lambda x: (x['dep_delay'].sum() - x['arr_delay'].sum())
-                    / len(x))
+                .apply(
+                    lambda x: (
+                        x['dep_delay'].sum() - x['arr_delay'].sum()
+                    ) / len(x)
+                )
                 .reindex(weekday_order)
             )
 
             hour_metric = (
                 data.groupby('dep_hour')
-                .apply(lambda x: (x['dep_delay'].sum() - x['arr_delay'].sum())
-                    / len(x))
+                .apply(
+                    lambda x: (
+                        x['dep_delay'].sum() - x['arr_delay'].sum()
+                    ) / len(x)
+                )
                 .reindex(range(5, 23))
             )
 
             ylabel = 'Net delay change (min/train)'
+
         else:
             # Delay absorption for late-arriving trains (%)
             weekday_metric = (
                 data.groupby('weekday')
-                .apply(lambda x: (x['arr_delay'].sum() - x['dep_delay'].sum())
-                    / x['arr_delay'].sum() * 100
-                    if x['arr_delay'].sum() != 0 else np.nan)
+                .apply(
+                    lambda x: (
+                        (x['arr_delay'].sum() - x['dep_delay'].sum())
+                        / x['arr_delay'].sum() * 100
+                        if x['arr_delay'].sum() != 0 else np.nan
+                    )
+                )
                 .reindex(weekday_order)
             )
 
             hour_metric = (
                 data.groupby('dep_hour')
-                .apply(lambda x: (x['arr_delay'].sum() - x['dep_delay'].sum())
-                    / x['arr_delay'].sum() * 100
-                    if x['arr_delay'].sum() != 0 else np.nan)
+                .apply(
+                    lambda x: (
+                        (x['arr_delay'].sum() - x['dep_delay'].sum())
+                        / x['arr_delay'].sum() * 100
+                        if x['arr_delay'].sum() != 0 else np.nan
+                    )
+                )
                 .reindex(range(5, 23))
             )
 
@@ -578,8 +744,12 @@ def train_analysis(data='data/traindata_total.csv',
         weekday_metric.plot(kind='bar', ax=axes[0, col])
         hour_metric.plot(kind='bar', ax=axes[1, col])
 
-        axes[0, col].set_title(['All trains', 'Late arrivals'][col] + ': Weekday')
-        axes[1, col].set_title(['All trains', 'Late arrivals'][col] + ': Departure hour')
+        axes[0, col].set_title(
+            ['All trains', 'Late arrivals'][col] + ': Weekday'
+        )
+        axes[1, col].set_title(
+            ['All trains', 'Late arrivals'][col] + ': Departure hour'
+        )
 
         axes[0, col].set_xlabel('Weekday')
         axes[1, col].set_xlabel('Departure hour')
@@ -593,9 +763,9 @@ def train_analysis(data='data/traindata_total.csv',
     plt.tight_layout()
     plt.show()
 
-
     # Delay propagation
-    # Classify delay changes using 3-minute and 1-minute thresholds -> Compacted 4 loose codes using AI
+    # Classify delay changes using 3-minute and 1-minute thresholds
+    # -> Compacted 4 loose codes using AI
     for threshold in [3, 1]:
         conditions = [
             delay_comparison['delay_change'] > threshold,
@@ -660,7 +830,9 @@ def train_analysis(data='data/traindata_total.csv',
 
         ax.set_xlabel('Weekday')
         ax.set_ylabel('Percentage of trains (%)')
-        ax.set_title(f'Delay Propagation by Weekday ({threshold}-minute threshold)')
+        ax.set_title(
+            f'Delay Propagation by Weekday ({threshold}-minute threshold)'
+        )
         ax.set_xticklabels(weekday_order, rotation=45)
         ax.set_ylim(0, 100)
         ax.legend(title='Delay change')
@@ -699,17 +871,20 @@ def train_analysis(data='data/traindata_total.csv',
 
         ax.set_xlabel('Scheduled departure hour')
         ax.set_ylabel('Percentage of trains (%)')
-        ax.set_title(f'Delay Propagation by Departure Hour ({threshold}-minute threshold)')
+        ax.set_title(
+            f'Delay Propagation by Departure Hour '
+            f'({threshold}-minute threshold)'
+        )
         ax.set_ylim(0, 100)
         ax.legend(title='Delay change')
 
     plt.tight_layout()
     plt.show()
 
+    # ----------------------------------- #
+    # ---- 4.6 - Heatmap correlation ---- #
+    # ----------------------------------- #
 
-# ----------------------------------- #
-# ---- 4.6 - Heatmap correlation ---- #
-# ----------------------------------- #
     # General correlation
     weekly_data = train.groupby('week').agg(
         arrival_delayed=('arr_delay', lambda x: (x > 3).mean() * 100),
@@ -736,8 +911,12 @@ def train_analysis(data='data/traindata_total.csv',
 
     # Dwell time and delay absorption correlation of late arrivals
     delay_comparison['dwell_time'] = (
-        pd.to_datetime(delay_comparison['scheduled_departure'], format='%H:%M')
-        - pd.to_datetime(delay_comparison['scheduled_arrival'], format='%H:%M')
+        pd.to_datetime(
+            delay_comparison['scheduled_departure'], format='%H:%M'
+        )
+        - pd.to_datetime(
+            delay_comparison['scheduled_arrival'], format='%H:%M'
+        )
     ).dt.total_seconds() / 60
 
     delay_comparison['dwell_time'] = delay_comparison['dwell_time'] % 1440
@@ -819,7 +998,6 @@ def train_analysis(data='data/traindata_total.csv',
     plt.tight_layout()
     plt.show()
 
-
     # Correlation of dwell time and all delayed trains
     min_trains = 15
     row_var = 'dep_hour'
@@ -890,17 +1068,4 @@ def train_analysis(data='data/traindata_total.csv',
         'Cancellations per day': cancellations_per_day
     }
 
-    if verbose:
-        print(f"DELAYS AND CANCELLATIONS BETWEEN: {start_period} AND {end_period}")
-        print(f"Number of complete cancellations: {total_cancellations}")
-        print(f"    {delayed_trains:.1f}% of trains were delayed.")
-        print(f"    {delayed_operations:.1f}% of train operations were delayed by more than 3 minutes.")
-        print(f"    {total_cancellations_perct:.1f}% of trains were cancelled.")
-
-        print("\nRELATIVE PERFORMANCE")
-        print(f"    Delay per vehicle: {delay_per_vehicle:.2f} minutes")
-        print(f"    Delay per day: {delay_per_day:.1f} minutes")
-        print(f"    Cancellations per 100 vehicles: {cancellations_per_100_vehicles:.2f}")
-        print(f"    Cancellations per day: {cancellations_per_day:.2f}")
-
-    return results
+    return train, results
