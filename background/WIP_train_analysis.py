@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from matplotlib.colors import BoundaryNorm
+from matplotlib.ticker import FuncFormatter
 
 
 # ---------------------------------------------------------------------
@@ -90,15 +91,6 @@ def filter_cancellation_days(train, cancellation_percentile=75, verbose=True):
     filtered_train = train[
         ~train['Date'].dt.normalize().isin(excluded_days)
     ].copy()
-
-    # if verbose:
-    #     print('\nCANCELLATION-DAY FILTER')
-    #     print(f'Percentile used: {cancellation_percentile}th')
-    #     print(f'Cancellation threshold: {threshold:.1f} per day')
-    #     print(f'Days excluded: {len(excluded_days)} of {len(daily_cancellations)}')
-    #     print(f'Trains removed: {len(train) - len(filtered_train)}')
-    #     print(f'Trains remaining: {len(filtered_train)}')
-    #     print("")
 
     return filtered_train
 
@@ -205,10 +197,13 @@ def analyse_delays(train, start_period=None, end_period=None, verbose=True):
         'Cancellations per 100 vehicles': cancel_per_100, 'Cancellations per day': cancel_per_day
     }
 
+
+
 # ---------------------------------------------------------------------
 # 4.2 - Delays per hour
 # ---------------------------------------------------------------------
 def analyse_delays_per_hour(train):
+
     hourly = train.groupby('arr_hour').agg(
         arrival_mean=('arr_delay', 'mean'),
         departure_mean=('dep_delay', 'mean'),
@@ -224,64 +219,175 @@ def analyse_delays_per_hour(train):
 
     hours = hourly.index
 
-    fig, axes = plt.subplots(
-        3, 1, figsize=(13, 12), sharex=True,
-        gridspec_kw={'height_ratios': [1, 1.2, 0.8]}
-    )
+    # ---------------------------------------------------------
+    # Plot 1: Average delay
+    # ---------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(13, 5))
 
-    # 1. Average delay
-    axes[0].plot(
+    ax.plot(
         hours, hourly['arrival_mean'],
         marker='o', linewidth=2, label='Arrival'
     )
-    axes[0].plot(
+    ax.plot(
         hours, hourly['departure_mean'],
         marker='o', linewidth=2, label='Departure'
     )
-    axes[0].set_ylabel('Mean delay (min)')
-    axes[0].set_title('Average delay by hour', loc='left')
-    axes[0].legend(frameon=False, ncol=2)
-    axes[0].grid(axis='y', alpha=0.25)
+    ax.set_ylabel('Mean delay (min)')
+    ax.set_xlabel('Scheduled arrival hour')
+    ax.set_title('Average delay by hour', loc='left')
+    ax.legend(frameon=False, ncol=2)
+    ax.grid(axis='y', alpha=0.25)
+    ax.spines[['top', 'right']].set_visible(False)
+    plt.tight_layout()
+    plt.show()
 
-    # 2. Percentage delayed
+    # ---------------------------------------------------------
+    # Plot 2: Percentage delayed
+    # ---------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(13, 5))
+
     for col, label, linestyle in [
         ('arrival_delayed', 'Arrival > 0 min', '-'),
         ('departure_delayed', 'Departure > 0 min', '-'),
         ('arrival_delayed_3', 'Arrival ≥ 3 min', '--'),
         ('departure_delayed_3', 'Departure ≥ 3 min', '--')
     ]:
-        axes[1].plot(
+        ax.plot(
             hours, hourly[col] * 100,
             marker='o', linewidth=1.8,
             linestyle=linestyle, label=label
         )
 
-    axes[1].set_ylabel('Trains delayed (%)')
-    axes[1].set_title('Frequency of delays', loc='left')
-    axes[1].legend(frameon=False, ncol=2)
-    axes[1].grid(axis='y', alpha=0.25)
+    ax.set_ylabel('Trains delayed (%)')
+    ax.set_xlabel('Scheduled arrival hour')
+    ax.set_title('Frequency of delays', loc='left')
+    ax.legend(frameon=False, ncol=2)
+    ax.grid(axis='y', alpha=0.25)
+    ax.spines[['top', 'right']].set_visible(False)
+    plt.tight_layout()
+    plt.show()
 
-    # 3. Cancellation rate
-    axes[2].bar(
+    # ---------------------------------------------------------
+    # Plot 3: Cancellation rate
+    # ---------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(13, 5))
+
+    ax.bar(
         hours, hourly['cancelled'] * 100,
-        width=0.7, label='Cancellation rate'
+        width=0.7
     )
-    axes[2].set_ylabel('Cancelled (%)')
-    axes[2].set_title('Cancellation rate by hour', loc='left')
-    axes[2].grid(axis='y', alpha=0.25)
+    ax.set_ylabel('Cancelled (%)')
+    ax.set_xlabel('Scheduled arrival hour')
+    ax.set_title('Cancellation rate by hour', loc='left')
+    ax.grid(axis='y', alpha=0.25)
+    ax.set_axisbelow(True)
+    ax.spines[['top', 'right']].set_visible(False)
+    plt.tight_layout()
+    plt.show()
 
-    # Shared formatting
-    for ax in axes:
-        ax.spines[['top', 'right']].set_visible(False)
-        ax.set_xlim(4.5, 22.5)
-        ax.set_xticks(range(5, 23))
-
-    axes[2].set_xlabel('Scheduled arrival hour')
-    fig.suptitle(
-        'Train Performance by Hour of Day',
-        fontsize=15, fontweight='bold'
+    # ---------------------------------------------------------
+    # Additional plots: average train counts per hour per day
+    # ---------------------------------------------------------
+    daily_train = train.copy()
+    daily_train['Date'] = pd.to_datetime(
+        daily_train['Date'], errors='coerce'
     )
-    fig.tight_layout()
+    daily_train['day'] = daily_train['Date'].dt.date
+
+    # Count arrivals and departures per hour per day
+    arrivals = (
+        daily_train.groupby(['day', 'arr_hour'])
+        .size()
+        .unstack(fill_value=0)
+    )
+
+    departures = (
+        daily_train.groupby(['day', 'dep_hour'])
+        .size()
+        .unstack(fill_value=0)
+    )
+
+    # Include every observed day and hour; missing hours count as zero
+    all_days = daily_train['day'].dropna().unique()
+    all_hours = range(5, 23)
+
+    arrivals = arrivals.reindex(
+        index=all_days, columns=all_hours, fill_value=0
+    )
+    departures = departures.reindex(
+        index=all_days, columns=all_hours, fill_value=0
+    )
+
+    # Average arrivals + departures per hour per day
+    total_mean = arrivals.mean().add(
+        departures.mean(), fill_value=0
+    )
+
+    # Count delayed arrivals and departures per hour per day (> 0 min)
+    delayed_arrivals = (
+        daily_train.loc[daily_train['arr_delay'] > 0]
+        .groupby(['day', 'arr_hour'])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(index=all_days, columns=all_hours, fill_value=0)
+    )
+
+    delayed_departures = (
+        daily_train.loc[daily_train['dep_delay'] > 0]
+        .groupby(['day', 'dep_hour'])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(index=all_days, columns=all_hours, fill_value=0)
+    )
+
+    total_delayed_mean = delayed_arrivals.mean().add(
+        delayed_departures.mean(), fill_value=0
+    )
+
+    # ---------------------------------------------------------
+    # Plot 4: Average total arrivals and departures per hour
+    # ---------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(13, 5))
+
+    ax.bar(
+        total_mean.index, total_mean.values,
+        width=0.8
+    )
+    ax.set_ylabel('Mean number of trains per day')
+    ax.set_xlabel('Hour of day')
+    ax.set_title(
+        'Average Arrivals and Departures per Hour per Day',
+        loc='left'
+    )
+    ax.set_xticks(list(all_hours))
+    ax.set_xlim(4.5, 22.5)
+    ax.grid(axis='y', alpha=0.25)
+    ax.set_axisbelow(True)
+    ax.spines[['top', 'right']].set_visible(False)
+    plt.tight_layout()
+    plt.show()
+
+    # ---------------------------------------------------------
+    # Plot 5: Average delayed arrivals and departures per hour
+    # ---------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(13, 5))
+
+    ax.bar(
+        total_delayed_mean.index, total_delayed_mean.values,
+        width=0.8
+    )
+    ax.set_ylabel('Mean number of delayed trains per day')
+    ax.set_xlabel('Hour of day')
+    ax.set_title(
+        'Average Delayed Arrivals and Departures per Hour (> 0 min)',
+        loc='left'
+    )
+    ax.set_xticks(list(all_hours))
+    ax.set_xlim(4.5, 22.5)
+    ax.grid(axis='y', alpha=0.25)
+    ax.set_axisbelow(True)
+    ax.spines[['top', 'right']].set_visible(False)
+    plt.tight_layout()
     plt.show()
 
 
@@ -404,11 +510,11 @@ def analyse_punctuality(train, train_punctual=None, verbose=True):
 def analyse_delay_absorption(train, delay_comparison=None,
                              train_punctual=None, verbose=True):
 
-    # ---------------------------------------------------------
-    # 1. Prepare data
-    # ---------------------------------------------------------
     if train_punctual is None:
-        punctual = train.loc[~train['cancelled'].fillna(False)].copy()
+        punctual = train.loc[
+            ~train['cancelled'].fillna(False)
+        ].copy()
+
         punctual['Date'] = pd.to_datetime(
             punctual['Date'], errors='coerce'
         )
@@ -430,21 +536,16 @@ def analyse_delay_absorption(train, delay_comparison=None,
         subset=['arr_delay', 'dep_delay']
     ).copy()
 
-    # Positive = delay absorbed; negative = delay increased
+    # Positive = delay accumulated; negative = delay absorbed
     all_trains['delay_change'] = (
         all_trains['dep_delay'] - all_trains['arr_delay']
     )
 
-    # Selected comparison dataset for the remaining analyses
+    # Use the existing comparison dataset if supplied.
+    # Otherwise, include all eligible trains, as in the second code.
     if delay_comparison is None:
-        comp = all_trains.loc[
-            ~(
-                (all_trains['arr_delay'] == 0)
-                & (all_trains['dep_delay'] == 0)
-            )
-        ].copy()
+        comp = all_trains.copy()
     else:
-        # Preserve the existing comparison dataset and its filtering
         comp = delay_comparison.copy()
         comp['Date'] = pd.to_datetime(
             comp['Date'], errors='coerce'
@@ -458,17 +559,22 @@ def analyse_delay_absorption(train, delay_comparison=None,
         comp['dep_hour'], errors='coerce'
     )
 
+    # Consistent direction for summary calculations:
+    # Positive = delay accumulated; negative = delay absorbed
     comp['delay_change'] = (
         comp['dep_delay'] - comp['arr_delay']
     )
 
     # Use the same scheduled dwell-time calculation as the original
-    # dwell-time heatmap
     sched_arr = pd.to_datetime(
-        comp['scheduled_arrival'], format='%H:%M', errors='coerce'
+        comp['scheduled_arrival'],
+        format='%H:%M',
+        errors='coerce'
     )
     sched_dep = pd.to_datetime(
-        comp['scheduled_departure'], format='%H:%M', errors='coerce'
+        comp['scheduled_departure'],
+        format='%H:%M',
+        errors='coerce'
     )
 
     comp['dwell_time'] = (
@@ -488,43 +594,48 @@ def analyse_delay_absorption(train, delay_comparison=None,
         right=False
     )
 
-    # Classify delay propagation using 3- and 1-minute thresholds
+    # Classify delay propagation using 3- and 1-minute thresholds.
+    # For this classification, positive = delay reduced.
+    propagation_change = (
+        comp['arr_delay'] - comp['dep_delay']
+    )
+
     for threshold in (3, 1):
         comp[f'delay_propagation_{threshold}min'] = np.select(
             [
-                comp['delay_change'] > threshold,
-                comp['delay_change'] < -threshold
+                propagation_change > threshold,
+                propagation_change < -threshold
             ],
             ['Delay reduced', 'Delay increased'],
             default='Unchanged delay'
         )
 
     # ---------------------------------------------------------
-    # 2. Summary metrics
+    # Summary metrics: match the second code
     # ---------------------------------------------------------
 
-    # Mean delay change across ALL eligible non-cancelled trains
+    # Mean delay change for ALL eligible non-cancelled trains
     mean_all = all_trains['delay_change'].mean()
 
-    # Mean delay change in the selected comparison dataset
+    # Mean delay change for the selected comparison dataset
     mean_selected = comp['delay_change'].mean()
 
+    # Overall delay absorption across the comparison dataset
     arr_sum = comp['arr_delay'].sum()
     dep_sum = comp['dep_delay'].sum()
 
-    # Net percentage of arrival delay recovered in selected dataset
     overall_absorption = (
         (arr_sum - dep_sum) / arr_sum * 100
         if arr_sum > 0 else np.nan
     )
 
-    # Mean net delay recovery per selected train
+    # Mean net delay change across the comparison dataset
     net_per_train = (
         comp['delay_change'].mean()
         if len(comp) > 0 else np.nan
     )
 
-    # Delay absorption among trains arriving late
+    # Late-arriving trains only
     late = comp.loc[comp['arr_delay'] > 0].copy()
 
     late_arr_sum = late['arr_delay'].sum()
@@ -537,12 +648,11 @@ def analyse_delay_absorption(train, delay_comparison=None,
 
     if verbose:
         print(
-            f'Mean net delay change (delayed trains): '
+            f'Mean net delay change (all running trains): '
             f'{mean_all:.2f} min/train'
         )
-        print(f'Overall delay absorption: {overall_absorption:.2f}%')
-        print(f'Late-arrival delay absorption: {late_absorption:.2f}%')
 
+        print(f'Late-arrival delay absorption: {late_absorption:.2f}%')
 
     
     # ---------------------------------------------------------
@@ -643,91 +753,117 @@ def analyse_delay_absorption(train, delay_comparison=None,
     fig.tight_layout()
     plt.show()
 
-    # ---------------------------------------------------------
-    # 4. Plot delay propagation categories
-    # ---------------------------------------------------------
-    fig, axes = plt.subplots(2, 2, figsize=(15, 9))
+# ---------------------------------------------------------
+# 4. Plot delay propagation by weekday and departure hour
+# ---------------------------------------------------------
 
-    category_order = [
-        'Delay reduced', 'Unchanged delay', 'Delay increased'
+    groups = [
+        ('weekday', order, 'Weekday'),
+        ('dep_hour', hours, 'Departure hour'),
     ]
 
-    category_colours = {
-        'Delay reduced': 'C0',
-        'Unchanged delay': 'lightgrey',
-        'Delay increased': 'C3'
-    }
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5))
 
-    for j, threshold in enumerate((3, 1)):
-        category = f'delay_propagation_{threshold}min'
+    # Exclude trains with no delay change
+    changed = comp.loc[
+        comp['arr_delay'] != comp['dep_delay']
+    ].copy()
 
-        for i, (group, index, xlabel) in enumerate([
-            ('weekday', order, 'Weekday'),
-            ('dep_hour', hours, 'Departure hour')
-        ]):
-            tab = (
-                comp.groupby([group, category], observed=False)
-                .size()
-                .unstack(fill_value=0)
-                .reindex(index, fill_value=0)
-                .reindex(columns=category_order, fill_value=0)
+    # Classify any reduction or increase in delay (> 0 minutes)
+    changed['delay_propagation'] = np.where(
+        changed['arr_delay'] > changed['dep_delay'],
+        'Delay reduced',
+        'Delay increased'
+    )
+
+    for ax, (g, idx, xlabel) in zip(axes, groups):
+
+        tab = (
+            changed.groupby([g, 'delay_propagation'], observed=False)
+            .size()
+            .unstack(fill_value=0)
+            .reindex(idx, fill_value=0)
+            .reindex(
+                columns=['Delay reduced', 'Delay increased'],
+                fill_value=0
             )
+        )
 
-            pct = tab.div(
-                tab.sum(axis=1).replace(0, np.nan), axis=0
-            ) * 100
+        pct = tab.div(
+            tab.sum(axis=1).replace(0, np.nan),
+            axis=0
+        ) * 100
 
-            ax = axes[i, j]
-            pct.plot(
-                kind='bar',
-                stacked=True,
-                ax=ax,
-                color=[category_colours[c] for c in category_order],
-                width=0.8
-            )
+        reduced = pct['Delay reduced'].fillna(0).to_numpy()
+        increased = pct['Delay increased'].fillna(0).to_numpy()
 
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel('Trains (%)')
-            ax.set_title(
-                f'{xlabel}: {threshold}-minute threshold',
-                loc='left', fontweight='bold'
-            )
-            ax.set_ylim(0, 100)
-            ax.grid(axis='y', alpha=0.2)
-            ax.set_axisbelow(True)
-            ax.spines[['top', 'right']].set_visible(False)
+        x = np.arange(len(idx))
 
-            if i == 0:
-                ax.tick_params(axis='x', rotation=35)
+        ax.bar(
+            x, reduced, width=0.8,
+            color='C0', label='Delay reduced'
+        )
+        ax.bar(
+            x, -increased, width=0.8,
+            color='C3', label='Delay increased'
+        )
+        ax.plot(
+            x, reduced - increased,
+            'o', color='black', markersize=4,
+            label='Balance (reduced − increased)'
+        )
+        ax.axhline(0, color='black', linewidth=0.9)
 
-            legend = ax.get_legend()
-            if i == 0 and j == 1:
-                ax.legend(
-                    title='Delay change',
-                    frameon=False,
-                    bbox_to_anchor=(1.02, 1),
-                    loc='upper left'
-                )
-            elif legend is not None:
-                legend.remove()
+        ax.set_xticks(x)
+        ax.set_xticklabels(
+            [str(v) for v in idx],
+            rotation=35 if g == 'weekday' else 0
+        )
+
+        max_val = max(
+            np.max(reduced, initial=0),
+            np.max(increased, initial=0)
+        )
+        limit = max(5, np.ceil(max_val * 1.15))
+        ax.set_ylim(-limit, limit)
+
+        ax.yaxis.set_major_formatter(
+            FuncFormatter(lambda v, _: f'{abs(v):.0f}')
+        )
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('Trains (%)\n↓ increased | reduced ↑')
+        ax.set_title(
+            f'Delay propagation by {xlabel.lower()}',
+            loc='left', fontweight='bold'
+        )
+        ax.grid(axis='y', alpha=0.25)
+        ax.set_axisbelow(True)
+        ax.spines[['top', 'right']].set_visible(False)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles, labels,
+        loc='upper center',
+        bbox_to_anchor=(0.5, 0.98),
+        ncol=3,
+        frameon=False
+    )
 
     fig.suptitle(
         'Delay Propagation by Weekday and Departure Hour',
-        fontsize=15, fontweight='bold'
+        fontsize=15, fontweight='bold',
+        y=1.08
     )
-    fig.tight_layout()
+
+    fig.text(
+        0.5, -0.02,
+        'Only non-cancelled trains with known arrival and departure delays '
+        'and a non-zero delay change are included.',
+        ha='center', fontsize=9
+    )
+
+    fig.tight_layout(rect=(0, 0.04, 1, 0.90))
     plt.show()
-
-    # return {
-    #     'comparison': comp,
-    #     'weekly_metrics': None,
-    #     'mean_net_change_all': mean_all,
-    #     'mean_net_change_selected': mean_selected,
-    #     'overall_absorption': overall_absorption,
-    #     'net_delay_change_per_train': net_per_train,
-    #     'late_arrival_absorption': late_absorption
-    # }
-
 
 # ---------------------------------------------------------------------
 # 4.5 - Correlation and dwell-time heatmaps
