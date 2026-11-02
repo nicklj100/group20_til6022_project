@@ -1,3 +1,4 @@
+# Data imports
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -5,6 +6,7 @@ import numpy as np
 from matplotlib.colors import BoundaryNorm
 from matplotlib.ticker import FuncFormatter
 
+# The code in this .py file is a concetanated version of the original Jupyter Notebook, with modifications to be modular and reusable.
 
 # ---------------------------------------------------------------------
 # Data loading and preparation
@@ -16,8 +18,8 @@ def load_train_data(data='data/traindata_total.csv',
     train['Service:Date'] = pd.to_datetime(train['Service:Date'])
     train = train[train['Service:Date'].between(start_period, end_period)].copy()
 
-    train = train.drop(columns=['index', 'Service:RDT-ID'])
-    train = train.rename(columns={
+    train = train.drop(columns=['index', 'Service:RDT-ID']) # Drop columns not needed for analysis
+    train = train.rename(columns={                          # Rename columns for clarity
         'Service:Type': 'Type', 'Service:Date': 'Date',
         'Stop:Arrival time': 'scheduled_arrival',
         'Stop:Departure time': 'scheduled_departure',
@@ -40,7 +42,8 @@ def load_train_data(data='data/traindata_total.csv',
 
     for col in ['scheduled_arrival', 'scheduled_departure']:
         train[col] = pd.to_datetime(train[col], utc=True).dt.strftime('%H:%M')
-
+    
+    # Creating actual departure and arrival times based on scheduled times and delays (actual = scheduled + delay)
     for label, delay_col in [('arrival', 'arr_delay'), ('departure', 'dep_delay')]:
         sched_col = f'scheduled_{label}'
         actual_col = f'actual_{label}'
@@ -49,11 +52,13 @@ def load_train_data(data='data/traindata_total.csv',
         train[sched_col] = scheduled.dt.strftime('%H:%M')
         train[actual_col] = actual.dt.strftime('%H:%M')
 
+    # Creating arrival and departure hour columns for filtering and analysis
     train['arr_hour'] = pd.to_datetime(train['actual_arrival'], format='%H:%M', errors='coerce').dt.hour
     train['dep_hour'] = pd.to_datetime(train['actual_departure'], format='%H:%M', errors='coerce').dt.hour
     train = train[train['dep_hour'].between(5, 22) & train['arr_hour'].between(5, 22)].copy()
     train = train.sort_values(['Date', 'actual_arrival']).reset_index(drop=True)
 
+    # Creating new variable columns as indicators to flag delay and cancellations
     train['arrival_delayed'] = train['arr_delay'] > 0
     train['departure_delayed'] = train['dep_delay'] > 0
     train['arrival_delayed_3'] = train['arr_delay'] >= 3
@@ -64,9 +69,9 @@ def load_train_data(data='data/traindata_total.csv',
 
 
 # ---------------------------------------------------------------------
-# Filter days with unusually high cancellation counts
+# Filter days with unusually high cancellation counts for the baseline analysis
 # ---------------------------------------------------------------------
-def filter_cancellation_days(train, cancellation_percentile=75, verbose=True):
+def filter_cancellation_days(train, cancellation_percentile=90, verbose=True):
     """Exclude days whose cancellation count is above the chosen percentile.
 
     Set cancellation_percentile=None to retain all days.
@@ -95,16 +100,17 @@ def filter_cancellation_days(train, cancellation_percentile=75, verbose=True):
     return filtered_train
 
 # ---------------------------------------------------------------------
-# 4.1 - Delays and cancellations in numbers
+# 1 - Delays and cancellations in numbers
 # ---------------------------------------------------------------------
 def analyse_delays(train, start_period=None, end_period=None, verbose=True):
+    # Defining statistics on delays and cancellations
     n = len(train)
     days = train['Date'].dt.normalize().nunique()
     delayed_vehicles = ((train['arrival_delayed']) | (train['departure_delayed'])).mean() * 100
     delayed_operations = ((train['arrival_delayed_3']) | (train['departure_delayed_3'])).mean() * 100
     cancellations = int(train['cancelled'].sum())
     cancellations_pct = cancellations / n * 100 if n else np.nan
-    total_delay = train['arr_delay'].clip(lower=0).fillna(0).sum() + train['dep_delay'].clip(lower=0).fillna(0).sum()
+    total_delay = train['arr_delay'].clip(lower=0).fillna(0).sum() + train['dep_delay'].clip(lower=0).fillna(0).sum() # Clipping although this dataset does not register any positive delays
     delay_per_vehicle = total_delay / n if n else np.nan
     delay_per_day = total_delay / days if days else np.nan
     cancel_per_100 = cancellations / n * 100 if n else np.nan
@@ -133,8 +139,8 @@ def analyse_delays(train, start_period=None, end_period=None, verbose=True):
     # Smooth daily variation using a 7-day rolling average
     rolling = daily.rolling(window=7, min_periods=4).mean()
 
+    # Plotting rolling and daily delay percentages
     fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
-
     plots = [
         ('arrival_delayed', 'departure_delayed',
         'Percentage of trains delayed (> 0 minutes)'),
@@ -184,7 +190,7 @@ def analyse_delays(train, start_period=None, end_period=None, verbose=True):
 
     axes[-1].set_xlabel('Date')
     fig.suptitle(
-        'Daily Train Delays Over Time',
+        'Figure 3.2.1: Daily Train Delays Over Time',
         fontsize=15, fontweight='bold'
     )
     fig.tight_layout()
@@ -198,12 +204,11 @@ def analyse_delays(train, start_period=None, end_period=None, verbose=True):
     }
 
 
-
 # ---------------------------------------------------------------------
-# 4.2 - Delays per hour
+# 2 - Delays per hour
 # ---------------------------------------------------------------------
 def analyse_delays_per_hour(train):
-
+    # Create hourly dataframe with mean and median delays, percentage delayed, and cancellation rate
     hourly = train.groupby('arr_hour').agg(
         arrival_mean=('arr_delay', 'mean'),
         departure_mean=('dep_delay', 'mean'),
@@ -219,9 +224,7 @@ def analyse_delays_per_hour(train):
 
     hours = hourly.index
 
-    # ---------------------------------------------------------
-    # Plot 1: Average delay
-    # ---------------------------------------------------------
+    # Plot 1: Average delay by hour
     fig, ax = plt.subplots(figsize=(13, 5))
 
     ax.plot(
@@ -232,18 +235,17 @@ def analyse_delays_per_hour(train):
         hours, hourly['departure_mean'],
         marker='o', linewidth=2, label='Departure'
     )
+    ax.set_xticks(hours)
     ax.set_ylabel('Mean delay (min)')
     ax.set_xlabel('Scheduled arrival hour')
-    ax.set_title('Average delay by hour', loc='left')
+    ax.set_title('Figure 3.2.2: Average delay by hour', loc='left')
     ax.legend(frameon=False, ncol=2)
     ax.grid(axis='y', alpha=0.25)
     ax.spines[['top', 'right']].set_visible(False)
     plt.tight_layout()
     plt.show()
 
-    # ---------------------------------------------------------
     # Plot 2: Percentage delayed
-    # ---------------------------------------------------------
     fig, ax = plt.subplots(figsize=(13, 5))
 
     for col, label, linestyle in [
@@ -257,37 +259,36 @@ def analyse_delays_per_hour(train):
             marker='o', linewidth=1.8,
             linestyle=linestyle, label=label
         )
-
+    ax.set_xticks(hours)
     ax.set_ylabel('Trains delayed (%)')
     ax.set_xlabel('Scheduled arrival hour')
-    ax.set_title('Frequency of delays', loc='left')
+    ax.set_title('Figure 3.2.3: Frequency of delays', loc='left')
     ax.legend(frameon=False, ncol=2)
     ax.grid(axis='y', alpha=0.25)
     ax.spines[['top', 'right']].set_visible(False)
     plt.tight_layout()
     plt.show()
 
-    # ---------------------------------------------------------
     # Plot 3: Cancellation rate
-    # ---------------------------------------------------------
     fig, ax = plt.subplots(figsize=(13, 5))
 
     ax.bar(
         hours, hourly['cancelled'] * 100,
         width=0.7
     )
+    ax.set_xticks(hours)
     ax.set_ylabel('Cancelled (%)')
     ax.set_xlabel('Scheduled arrival hour')
-    ax.set_title('Cancellation rate by hour', loc='left')
+    ax.set_title('Figure 3.2.4: Cancellation rate by hour', loc='left')
     ax.grid(axis='y', alpha=0.25)
     ax.set_axisbelow(True)
     ax.spines[['top', 'right']].set_visible(False)
     plt.tight_layout()
     plt.show()
 
-    # ---------------------------------------------------------
-    # Additional plots: average train counts per hour per day
-    # ---------------------------------------------------------
+    # Additional analysis: number of movements + 
+    #                      number of average delayed arrivals and departures per hour (% of total and % of delayed)
+
     daily_train = train.copy()
     daily_train['Date'] = pd.to_datetime(
         daily_train['Date'], errors='coerce'
@@ -344,9 +345,7 @@ def analyse_delays_per_hour(train):
         delayed_departures.mean(), fill_value=0
     )
 
-    # ---------------------------------------------------------
     # Plot 4: Average total arrivals and departures per hour
-    # ---------------------------------------------------------
     fig, ax = plt.subplots(figsize=(13, 5))
 
     ax.bar(
@@ -356,7 +355,7 @@ def analyse_delays_per_hour(train):
     ax.set_ylabel('Mean number of trains per day')
     ax.set_xlabel('Hour of day')
     ax.set_title(
-        'Average Arrivals and Departures per Hour per Day',
+        'Figure 3.2.5: Average Arrivals and Departures per Hour per Day',
         loc='left'
     )
     ax.set_xticks(list(all_hours))
@@ -367,9 +366,7 @@ def analyse_delays_per_hour(train):
     plt.tight_layout()
     plt.show()
 
-    # ---------------------------------------------------------
     # Plot 5: Average delayed arrivals and departures per hour
-    # ---------------------------------------------------------
     fig, ax = plt.subplots(figsize=(13, 5))
 
     ax.bar(
@@ -379,7 +376,7 @@ def analyse_delays_per_hour(train):
     ax.set_ylabel('Mean number of delayed trains per day')
     ax.set_xlabel('Hour of day')
     ax.set_title(
-        'Average Delayed Arrivals and Departures per Hour (> 0 min)',
+        'Figure 3.2.6: Average Delayed Arrivals and Departures per Hour (> 0 min)',
         loc='left'
     )
     ax.set_xticks(list(all_hours))
