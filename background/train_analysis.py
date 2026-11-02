@@ -9,6 +9,37 @@ from matplotlib.ticker import FuncFormatter
 # The code in this .py file is a concetanated version of the original Jupyter Notebook, with modifications to be modular and reusable.
 
 # ---------------------------------------------------------------------
+# Filter days with unusually high cancellation counts for the baseline analysis
+# ---------------------------------------------------------------------
+def filter_cancellation_days(train, cancellation_percentile=90, verbose=True):
+    """Exclude days whose cancellation count is above the chosen percentile.
+
+    Set cancellation_percentile=None to retain all days.
+    The percentile threshold is calculated from daily cancellation counts
+    in the loaded dataset.
+    """
+    if cancellation_percentile is None:
+        return train.copy()
+
+    daily_cancellations = train.groupby(
+        train['Date'].dt.normalize()
+    )['cancelled'].sum()
+
+    if daily_cancellations.empty:
+        return train.copy()
+
+    threshold = np.percentile(daily_cancellations, cancellation_percentile)
+    excluded_days = daily_cancellations[
+        daily_cancellations > threshold
+    ].index
+
+    filtered_train = train[
+        ~train['Date'].dt.normalize().isin(excluded_days)
+    ].copy()
+
+    return filtered_train
+
+# ---------------------------------------------------------------------
 # Data loading and preparation
 # ---------------------------------------------------------------------
 def load_train_data(data='data/traindata_total.csv',
@@ -65,38 +96,14 @@ def load_train_data(data='data/traindata_total.csv',
     train['departure_delayed_3'] = train['dep_delay'] >= 3
     train['cancelled'] = train['arr_cancelled'].fillna(False).astype(bool) | train['dep_cancelled'].fillna(False).astype(bool)
     train['week'] = train['Date'].dt.to_period('W').astype(str)
+
+    # Apply cancellation-day filtering
+    train = filter_cancellation_days(
+        train,
+        cancellation_percentile=90
+    )
+
     return train
-
-# ---------------------------------------------------------------------
-# Filter days with unusually high cancellation counts for the baseline analysis
-# ---------------------------------------------------------------------
-def filter_cancellation_days(train, cancellation_percentile=90, verbose=True):
-    """Exclude days whose cancellation count is above the chosen percentile.
-
-    Set cancellation_percentile=None to retain all days.
-    The percentile threshold is calculated from daily cancellation counts
-    in the loaded dataset.
-    """
-    if cancellation_percentile is None:
-        return train.copy()
-
-    daily_cancellations = train.groupby(
-        train['Date'].dt.normalize()
-    )['cancelled'].sum()
-
-    if daily_cancellations.empty:
-        return train.copy()
-
-    threshold = np.percentile(daily_cancellations, cancellation_percentile)
-    excluded_days = daily_cancellations[
-        daily_cancellations > threshold
-    ].index
-
-    filtered_train = train[
-        ~train['Date'].dt.normalize().isin(excluded_days)
-    ].copy()
-
-    return filtered_train
 
 # ---------------------------------------------------------------------
 # 1 - Delays and cancellations in numbers
