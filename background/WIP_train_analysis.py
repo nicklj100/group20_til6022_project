@@ -392,10 +392,11 @@ def analyse_delays_per_hour(train):
 # 4.3 - Punctuality
 # ---------------------------------------------------------------------
 def analyse_punctuality(train, train_punctual=None, verbose=True):
+    # Punctual if a train arrives and departs within 3 minutes of the scheduled time
     punctual = train.loc[~train['cancelled'].fillna(False)].copy()
     punctual['arr_punctual'] = punctual['arr_delay'] < 3
     punctual['dep_punctual'] = punctual['dep_delay'] < 3
-    punctual['both_punctual'] = punctual['arr_punctual'] & punctual['dep_punctual']
+    punctual['both_punctual'] = punctual['arr_punctual'] & punctual['dep_punctual'] # Flagging trains that are punctual at both arrival and departure
     punctual['delay_status'] = np.select(
         [punctual['arr_delay'] <= 0, punctual['arr_delay'] <= 3],
         ['On time', 'Delayed'], default='Significantly Delayed')
@@ -403,12 +404,14 @@ def analyse_punctuality(train, train_punctual=None, verbose=True):
         [punctual['dep_delay'] <= 0, punctual['dep_delay'] < 3],
         ['On time', 'Delayed'], default='Significantly Delayed')
     punctual['weekday'] = punctual['Date'].dt.day_name()
+    # Delay statistics
     arr_mean = punctual['arr_punctual'].mean() * 100
     dep_mean = punctual['dep_punctual'].mean() * 100
     total_mean = (punctual['arr_punctual'].sum() + punctual['dep_punctual'].sum()) / (punctual['arr_punctual'].count() + punctual['dep_punctual'].count()) * 100
     by_arr_hour = punctual.groupby('arr_hour')['arr_punctual'].mean() * 100
     by_dep_hour = punctual.groupby('dep_hour')['dep_punctual'].mean() * 100
     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    # Initializing weekly dataset on delays
     weekly = punctual.groupby('weekday')[['arr_punctual', 'dep_punctual']].mean().mul(100).reindex(weekday_order)
 
     fig, axes = plt.subplots(2, 1, figsize=(12, 10))
@@ -430,7 +433,7 @@ def analyse_punctuality(train, train_punctual=None, verbose=True):
     )
     axes[0].set_xlabel('Hour')
     axes[0].set_ylabel('Punctual trains (%)')
-    axes[0].set_title('Train punctuality per hour')
+    axes[0].set_title('3.2.7: Train punctuality per hour')
     axes[0].set_xticks(range(5, 23))
     axes[0].grid()
     axes[0].legend()
@@ -484,7 +487,7 @@ def analyse_punctuality(train, train_punctual=None, verbose=True):
     axes[1].set_ylim(y_min, 100)
     axes[1].set_xlabel('Day of the week')
     axes[1].set_ylabel('Punctual trains (%)')
-    axes[1].set_title('Train punctuality per weekday')
+    axes[1].set_title('3.2.8: Train punctuality per weekday')
     axes[1].set_xticks(x)
     axes[1].set_xticklabels(weekday_order, rotation=45, ha='right')
     axes[1].grid(axis='y', zorder=0)
@@ -498,7 +501,6 @@ def analyse_punctuality(train, train_punctual=None, verbose=True):
         print(f'Trains punctual at both arrival and departure: {both:.2f}%')
         print(f'Trains punctual at arrival: {arr_mean:.2f}%')
         print(f'Trains punctual at departure: {dep_mean:.2f}%')
-    # return punctual, {'Both arrival and departure punctual (%)': both, 'Arrival punctual (%)': arr_mean, 'Departure punctual (%)': dep_mean}
 
 
 # ---------------------------------------------------------------------
@@ -606,10 +608,6 @@ def analyse_delay_absorption(train, delay_comparison=None,
             ['Delay reduced', 'Delay increased'],
             default='Unchanged delay'
         )
-
-    # ---------------------------------------------------------
-    # Summary metrics: match the second code
-    # ---------------------------------------------------------
 
     # Mean delay change for ALL eligible non-cancelled trains
     mean_all = all_trains['delay_change'].mean()
