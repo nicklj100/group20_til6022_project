@@ -1,2 +1,9 @@
 raw data/
-hour_data.txt
+hour_weather.txt
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# VS Code
+.vscode/
