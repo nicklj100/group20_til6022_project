@@ -5,9 +5,5 @@ hour_weather.txt
 __pycache__/
 *.py[cod]
 
-background/
-__pycache__/
-*.py[cod]
-
 # VS Code
 .vscode/
