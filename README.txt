@@ -47,7 +47,7 @@ amount and duration, maximum hourly precipitation, and weather codes related
 to snowfall, icing, rain, and thunderstorms.
 
 Source:
-https://uurgegevens.knmi.nl/klimatologie/uurgegevens
+https://www.knmi.nl/nederland-nu/klimatologie/uurgegevens
 
 
 Rijden de Treinen Open Data
