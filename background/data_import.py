@@ -6,7 +6,7 @@ Performed offline as dataset is large.
 
 import pandas as pd
 
-with open('hour_data.txt') as f:
+with open('raw data/hour_weather.txt') as f:
     for i, line in enumerate(f):
         if line.startswith('# STN'):
             header_row = i
@@ -14,7 +14,7 @@ with open('hour_data.txt') as f:
           
 # Weather dataframe
 knmi = pd.read_csv(
-    'hour_data.txt',
+    'raw data/hour_weather.txt',
     skiprows=header_row,
     skipinitialspace=True
 )
