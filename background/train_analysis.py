@@ -482,33 +482,23 @@ def analyse_punctuality(train, train_punctual=None, verbose=True):
     x = np.arange(len(weekday_order))
     width = 0.35
 
-    y_min = min(
-        weekly['arr_punctual'].min(),
-        weekly['dep_punctual'].min()
-    ) - 5
-
-    # Grey areas above each bar, up to 100%
+    # Grey background bars up to 100%
     for i, col in enumerate(['arr_punctual', 'dep_punctual']):
         positions = x + (i - 0.5) * width
         values = weekly[col].values
 
         axes[1].bar(
-            positions, 100 - values, width,
-            bottom=values, color='lightgrey',
-            edgecolor='none', zorder=1
+            positions, 100, width,
+            color='lightgrey',
+            edgecolor='none',
+            zorder=1
         )
 
-    # The bars start at 80% instead of 0%, so the differences between weekdays are easier to see
-    for i, (col, label) in enumerate([
-        ('arr_punctual', 'Arrival'),
-        ('dep_punctual', 'Departure')
-    ]):
-        positions = x + (i - 0.5) * width
-        values = weekly[col].values
-
+        # Coloured bars show the percentage of punctual trains
         axes[1].bar(
-            positions, values - 80, width,
-            bottom=80, label=label, zorder=2
+            positions, values, width,
+            label='Arrival' if i == 0 else 'Departure',
+            zorder=2
         )
 
     # Mean lines
@@ -525,7 +515,7 @@ def analyse_punctuality(train, train_punctual=None, verbose=True):
         label=f'Mean overall ({total_mean:.1f}%)', zorder=3
     )
 
-    axes[1].set_ylim(y_min, 100)
+    axes[1].set_ylim(40, 100)
     axes[1].set_xlabel('Day of the week')
     axes[1].set_ylabel('Punctual trains (%)')
     axes[1].set_title('3.2.8: Train punctuality per weekday')
@@ -1175,20 +1165,25 @@ def cancellation_chart(train_selected):
     ax.bar(
         daily_trains.index,
         daily_trains['non_cancelled_pct'],
-        label='Non-cancelled trains'
+        label='Non-cancelled trains',
+        color='C0'
     )
 
     ax.bar(
         daily_trains.index,
         daily_trains['cancelled_pct'],
         bottom=daily_trains['non_cancelled_pct'],
-        label='Cancelled trains'
+        label='Cancelled trains',
+        color='C3'
     )
 
     ax.set_title('Percentage of trains and cancellations per day')
     ax.set_xlabel('Date')
     ax.set_ylabel('Percentage of trains (%)')
     ax.set_ylim(0, 100)
+    ax.grid(axis='y', alpha=0.25)
+    ax.set_axisbelow(True)
+    ax.spines[['top', 'right']].set_visible(False)
     ax.legend()
 
     plt.tight_layout()
