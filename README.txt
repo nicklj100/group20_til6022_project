@@ -72,10 +72,18 @@ https://www.rijdendetreinen.nl/open-data/treinarchief
 ├── background/
 │   ├── data_import.py
 │   │   # Import of data sources offline to create smaller datasources (redundant, for information)
+│   ├── weather.ipynb
+│   │   # Second analysis on weather data
+│   ├── weather_analysis.ipynb
+│   │   # Full data analysis on weather data
+│   ├── weather_comparison.py
+│   │   # Concatenated weather_comparison notebook for implementation in project_final_report
+│   ├── weather_comparison.ipynb
+│   │   # Full data analysis on weather and train data
+│   ├── train_comparison.py
+│   │   # Comparison analysis for implementation in notebook
 │   ├── train_analysis.py
 │   │   # Concatenated train_analysis notebook for implementation in project_final_report
-│   ├── weather.ipynb
-│   │   # Full data analysis on weather data
 │   └── train_analysis.ipynb
 │       # Full data analysis on train data
 │
@@ -126,9 +134,8 @@ Step 3: Install the required dependencies
 Step 4: Ensure that the required datasets are located in the data/ directory
 
     data/
-!    ├── xxxxx.csv
-!    ├── xxxxx.csv
-    └── traindata_total.csv
+!    ├── weather_selected.csv
+     └── traindata_total.csv
 
 Step 5: Start Jupyter Notebook
 

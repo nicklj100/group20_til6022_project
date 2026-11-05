@@ -34,7 +34,7 @@ def load_weather_data(data='./data/weather_selected.csv',
     columns_of_interest = ['datetime', 'T_C', 'TD_C', 'FF', 'RH_mm', 'S', 'R', 'WW', 'VV', 'U']
     df_weather = df_filtered[columns_of_interest].dropna(subset=['datetime'])
 
-    print(f"Filtered dataset contains {len(df_weather)} records for the selected period.")
+    # print(f"Filtered dataset contains {len(df_weather)} records for the selected period.")
 
     return df_weather
 
