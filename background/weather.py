@@ -495,7 +495,7 @@ def event_vs_baseline_statistics():
 
         tables.append(df)
 
-    return pd.concat(tables, ignore_index=True)
+    return pd.concat(tables, ignore_index=True).round(2)
 
 event_stats = event_vs_baseline_statistics()
 
