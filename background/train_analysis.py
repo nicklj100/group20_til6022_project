@@ -47,7 +47,7 @@ def filter_cancellation_days(train, cancellation_percentile=90):
 # Data loading and preparation
 # ---------------------------------------------------------------------
 def load_train_data(data='data/traindata_total.csv',
-                    start_period='2025-12-15', end_period='2026-04-30'):
+                    start_period='2025-12-15', end_period='2026-04-30', cancellation_perc = 90):
     """Load, clean and prepare the train dataset; does not create plots."""
     train = pd.read_csv(data)
     train['Service:Date'] = pd.to_datetime(train['Service:Date'])
@@ -113,7 +113,7 @@ def load_train_data(data='data/traindata_total.csv',
     # Apply cancellation-day filtering
     train = filter_cancellation_days(
         train,
-        cancellation_percentile=90
+        cancellation_percentile=cancellation_perc
     )
 
     return train
@@ -121,7 +121,7 @@ def load_train_data(data='data/traindata_total.csv',
 # ---------------------------------------------------------------------
 # 1 - Delays and cancellations in numbers
 # ---------------------------------------------------------------------
-def analyse_delays(train, start_period=None, end_period=None, verbose=True):
+def analyse_delays(train, start_period=None, end_period=None, verbose=True, plot = True):
     """Analyse delays and cancellations in the train dataset, and create plots of daily delay percentages."""
 
     # Defining statistics on delays and cancellations
@@ -162,72 +162,73 @@ def analyse_delays(train, start_period=None, end_period=None, verbose=True):
 
     # Smooth daily variation using a 7-day rolling average
     rolling = daily.rolling(window=7, min_periods=4).mean()
+    if plot:
+        # Plotting rolling and daily delay percentages
+        fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
 
-    # Plotting rolling and daily delay percentages
-    fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
-    plots = [
-        ('arrival_delayed', 'departure_delayed',
-        'Percentage of trains delayed (> 0 minutes)'),
-        ('arrival_delayed_3', 'departure_delayed_3',
-        'Percentage of trains delayed (≥ 3 minutes)')
-    ]
+        plots = [
+            ('arrival_delayed', 'departure_delayed',
+            'Percentage of trains delayed (> 0 minutes)'),
+            ('arrival_delayed_3', 'departure_delayed_3',
+            'Percentage of trains delayed (≥ 3 minutes)')
+        ]
 
-    for ax, (arrival, departure, title) in zip(axes, plots):
-        # Daily observations
-        ax.plot(
-            daily.index, daily[arrival],
-            color='C0', alpha=0.2, linewidth=0.8
+        for ax, (arrival, departure, title) in zip(axes, plots):
+            # Daily observations
+            ax.plot(
+                daily.index, daily[arrival],
+                color='C0', alpha=0.2, linewidth=0.8
+            )
+            ax.plot(
+                daily.index, daily[departure],
+                color='C1', alpha=0.2, linewidth=0.8
+            )
+
+            # Seven-day rolling averages
+            ax.plot(
+                rolling.index, rolling[arrival],
+                color='C0', linewidth=2, label='Arrival'
+            )
+            ax.plot(
+                rolling.index, rolling[departure],
+                color='C1', linewidth=2, label='Departure'
+            )
+
+            # Overall average
+            ax.axhline(
+                daily[arrival].mean(),
+                color='C0', linestyle='--', alpha=0.8,
+                label=f'Arrival mean ({daily[arrival].mean():.1f}%)'
+            )
+            ax.axhline(
+                daily[departure].mean(),
+                color='C1', linestyle='--', alpha=0.8,
+                label=f'Departure mean ({daily[departure].mean():.1f}%)'
+            )
+
+            ax.set_title(title, loc='left', fontsize=12, fontweight='bold')
+            ax.set_ylabel('Delayed trains (%)')
+
+            # Same y-axis limits for both panels so they can be compared directly
+            ax.set_ylim(bottom=0, top=50)
+            ax.grid(axis='y', alpha=0.25)
+            ax.spines[['top', 'right']].set_visible(False)
+            ax.legend(ncol=2, frameon=False, loc='upper right')
+
+        axes[-1].set_xlabel('Date')
+        fig.suptitle(
+            'Figure 3.2.1: Daily Train Delays Over Time',
+            fontsize=15, fontweight='bold'
         )
-        ax.plot(
-            daily.index, daily[departure],
-            color='C1', alpha=0.2, linewidth=0.8
-        )
+        fig.tight_layout()
+        plt.show()
 
-        # Seven-day rolling averages
-        ax.plot(
-            rolling.index, rolling[arrival],
-            color='C0', linewidth=2, label='Arrival'
-        )
-        ax.plot(
-            rolling.index, rolling[departure],
-            color='C1', linewidth=2, label='Departure'
-        )
-
-        # Overall average
-        ax.axhline(
-            daily[arrival].mean(),
-            color='C0', linestyle='--', alpha=0.8,
-            label=f'Arrival mean ({daily[arrival].mean():.1f}%)'
-        )
-        ax.axhline(
-            daily[departure].mean(),
-            color='C1', linestyle='--', alpha=0.8,
-            label=f'Departure mean ({daily[departure].mean():.1f}%)'
-        )
-
-        ax.set_title(title, loc='left', fontsize=12, fontweight='bold')
-        ax.set_ylabel('Delayed trains (%)')
-
-        # Same y-axis limits for both panels so they can be compared directly
-        ax.set_ylim(bottom=0, top=50)
-        ax.grid(axis='y', alpha=0.25)
-        ax.spines[['top', 'right']].set_visible(False)
-        ax.legend(ncol=2, frameon=False, loc='upper right')
-
-    axes[-1].set_xlabel('Date')
-    fig.suptitle(
-        'Figure 3.2.1: Daily Train Delays Over Time',
-        fontsize=15, fontweight='bold'
-    )
-    fig.tight_layout()
-    plt.show()
-
-    return {
-        'Vehicles': n, 'Days': days, 'Delayed vehicles (%)': delayed_vehicles,
-        'Delayed operations (%)': delayed_operations,
-        'Delay per vehicle (min)': delay_per_vehicle, 'Delay per day (min)': delay_per_day,
-        'Cancellations per 100 vehicles': cancel_per_100, 'Cancellations per day': cancel_per_day
-    }
+        return {
+            'Vehicles': n, 'Days': days, 'Delayed vehicles (%)': delayed_vehicles,
+            'Delayed operations (%)': delayed_operations,
+            'Delay per vehicle (min)': delay_per_vehicle, 'Delay per day (min)': delay_per_day,
+            'Cancellations per 100 vehicles': cancel_per_100, 'Cancellations per day': cancel_per_day
+        }
 
 # ---------------------------------------------------------------------
 # 2 - Delays per hour
@@ -921,7 +922,7 @@ def analyse_delay_absorption(train, delay_comparison=None,
 # 5 - Correlation and dwell-time heatmaps
 # ---------------------------------------------------------------------
 def analyse_correlations(train, delay_comparison=None, train_punctual=None,
-                         min_trains=15, min_arr_delay=60):
+                         min_trains=15, min_arr_delay=60, heatmaps = True):
     
     if train_punctual is None:
         punctual = train.loc[
@@ -1037,116 +1038,158 @@ def analyse_correlations(train, delay_comparison=None, train_punctual=None,
     )
     plt.tight_layout()
     plt.show()
+    if heatmaps:
+        # 3. Heatmap: delay absorption for late-arriving trains
+        late = comp.loc[comp['arr_delay'] > 0].copy()
 
-    # 3. Heatmap: delay absorption for late-arriving trains
-    late = comp.loc[comp['arr_delay'] > 0].copy()
+        grouped_late = late.groupby(
+            ['dep_hour', 'dwell_bin'], observed=False
+        ).agg(
+            arr_sum=('arr_delay', 'sum'),
+            dep_sum=('dep_delay', 'sum'),
+            n_trains=('train_id', 'count')
+        )
 
-    grouped_late = late.groupby(
-        ['dep_hour', 'dwell_bin'], observed=False
-    ).agg(
-        arr_sum=('arr_delay', 'sum'),
-        dep_sum=('dep_delay', 'sum'),
-        n_trains=('train_id', 'count')
+        # Cells with too little data (small total delay or few trains) are left empty, as their percentages are unreliable
+        grouped_late['absorption'] = (
+            (grouped_late['arr_sum'] - grouped_late['dep_sum'])
+            / grouped_late['arr_sum'] * 100
+        ).where(
+            (grouped_late['arr_sum'] >= min_arr_delay)
+            & (grouped_late['n_trains'] >= min_trains)
+        )
+
+        heat_late = (
+            grouped_late['absorption']
+            .unstack('dwell_bin')
+            .reindex(index=range(5, 23), columns=dwell_labels)
+        )
+
+        # Uneven color boundaries give more detail around zero, where most values are expected
+        # (positive = delay absorbed, negative = delay increased)
+        boundaries = [-100, -50, -20, -5, -1, 0, 1, 5, 20, 50, 100]
+        cmap = plt.get_cmap('RdBu', len(boundaries) - 1)
+        norm = BoundaryNorm(boundaries, cmap.N, clip=True)
+
+        fig, ax = plt.subplots(figsize=(11, 8))
+        sns.heatmap(
+            heat_late,
+            cmap=cmap,
+            norm=norm,
+            annot=True,
+            fmt='.0f',
+            linewidths=0.5,
+            linecolor='white',
+            cbar_kws={
+                'label': 'Delay absorption (%)',
+                'ticks': boundaries
+            },
+            ax=ax
+        )
+        # Grey cells are combinations without enough data
+        ax.set_facecolor('lightgrey')
+        ax.set_xlabel('Scheduled dwell time at Utrecht Centraal (minutes)')
+        ax.set_ylabel('Departure hour')
+        ax.set_title(
+            '3.2.12: Delay Absorption of Late-Arriving Trains by Dwell Time '
+            'and Departure Hour'
+        )
+        plt.tight_layout()
+        plt.show()
+
+        # 4. Heatmap: average net delay change for all trains
+        grouped_all = comp.groupby(
+            ['dep_hour', 'dwell_bin'], observed=False
+        ).agg(
+            arr_sum=('arr_delay', 'sum'),
+            dep_sum=('dep_delay', 'sum'),
+            n_trains=('train_id', 'count')
+        )
+
+        # Mean net change per train (departure delay minus arrival delay): positive = delay increased, negative = delay absorbed
+        grouped_all['net_delay_change'] = (
+            (grouped_all['dep_sum'] - grouped_all['arr_sum'])
+            / grouped_all['n_trains']
+        ).where(grouped_all['n_trains'] >= min_trains)
+
+        heat_all = (
+            grouped_all['net_delay_change']
+            .unstack('dwell_bin')
+            .reindex(index=range(5, 23), columns=dwell_labels)
+        )
+
+        valid_values = heat_all.to_numpy()
+        valid_values = valid_values[np.isfinite(valid_values)]
+
+        # Symmetric color scale around zero (at least 1), so that the colors for absorbed and increased delay are comparable
+        limit = (
+            max(abs(valid_values.min()), abs(valid_values.max()), 1)
+            if len(valid_values) else 1
+        )
+
+        fig, ax = plt.subplots(figsize=(11, 8))
+        sns.heatmap(
+            heat_all,
+            cmap='RdBu_r',
+            center=0,
+            vmin=-limit,
+            vmax=limit,
+            annot=True,
+            fmt='.1f',
+            linewidths=0.5,
+            linecolor='white',
+            cbar_kws={
+                'label': 'Net delay change (minutes per train)'
+            },
+            ax=ax
+        )
+        ax.set_facecolor('lightgrey')
+        ax.set_xlabel('Scheduled dwell time at Utrecht Centraal (minutes)')
+        ax.set_ylabel('Departure hour')
+        ax.set_title(
+            '3.2.13: Net Delay Change by Dwell Time and Departure Hour'
+        )
+        plt.tight_layout()
+        plt.show()
+
+# ---------------------------------------------------------------------
+# 6 - Cancellation chart with percentages
+# ---------------------------------------------------------------------
+def cancellation_chart(train_selected):
+    # Plot percentage of cancelled and non-cancelled trains per day
+    daily_trains = train_selected.groupby(train_selected['Date'].dt.normalize()).agg(
+        total_trains=('cancelled', 'size'),
+        cancelled_trains=('cancelled', 'sum')
     )
 
-    # Cells with too little data (small total delay or few trains) are left empty, as their percentages are unreliable
-    grouped_late['absorption'] = (
-        (grouped_late['arr_sum'] - grouped_late['dep_sum'])
-        / grouped_late['arr_sum'] * 100
-    ).where(
-        (grouped_late['arr_sum'] >= min_arr_delay)
-        & (grouped_late['n_trains'] >= min_trains)
+    daily_trains['cancelled_pct'] = (
+        daily_trains['cancelled_trains'] / daily_trains['total_trains'] * 100
     )
 
-    heat_late = (
-        grouped_late['absorption']
-        .unstack('dwell_bin')
-        .reindex(index=range(5, 23), columns=dwell_labels)
+    daily_trains['non_cancelled_pct'] = (
+        100 - daily_trains['cancelled_pct']
     )
 
-    # Uneven color boundaries give more detail around zero, where most values are expected
-    # (positive = delay absorbed, negative = delay increased)
-    boundaries = [-100, -50, -20, -5, -1, 0, 1, 5, 20, 50, 100]
-    cmap = plt.get_cmap('RdBu', len(boundaries) - 1)
-    norm = BoundaryNorm(boundaries, cmap.N, clip=True)
+    fig, ax = plt.subplots(figsize=(15, 6))
 
-    fig, ax = plt.subplots(figsize=(11, 8))
-    sns.heatmap(
-        heat_late,
-        cmap=cmap,
-        norm=norm,
-        annot=True,
-        fmt='.0f',
-        linewidths=0.5,
-        linecolor='white',
-        cbar_kws={
-            'label': 'Delay absorption (%)',
-            'ticks': boundaries
-        },
-        ax=ax
-    )
-    # Grey cells are combinations without enough data
-    ax.set_facecolor('lightgrey')
-    ax.set_xlabel('Scheduled dwell time at Utrecht Centraal (minutes)')
-    ax.set_ylabel('Departure hour')
-    ax.set_title(
-        '3.2.12: Delay Absorption of Late-Arriving Trains by Dwell Time '
-        'and Departure Hour'
-    )
-    plt.tight_layout()
-    plt.show()
-
-    # 4. Heatmap: average net delay change for all trains
-    grouped_all = comp.groupby(
-        ['dep_hour', 'dwell_bin'], observed=False
-    ).agg(
-        arr_sum=('arr_delay', 'sum'),
-        dep_sum=('dep_delay', 'sum'),
-        n_trains=('train_id', 'count')
+    ax.bar(
+        daily_trains.index,
+        daily_trains['non_cancelled_pct'],
+        label='Non-cancelled trains'
     )
 
-    # Mean net change per train (departure delay minus arrival delay): positive = delay increased, negative = delay absorbed
-    grouped_all['net_delay_change'] = (
-        (grouped_all['dep_sum'] - grouped_all['arr_sum'])
-        / grouped_all['n_trains']
-    ).where(grouped_all['n_trains'] >= min_trains)
-
-    heat_all = (
-        grouped_all['net_delay_change']
-        .unstack('dwell_bin')
-        .reindex(index=range(5, 23), columns=dwell_labels)
+    ax.bar(
+        daily_trains.index,
+        daily_trains['cancelled_pct'],
+        bottom=daily_trains['non_cancelled_pct'],
+        label='Cancelled trains'
     )
 
-    valid_values = heat_all.to_numpy()
-    valid_values = valid_values[np.isfinite(valid_values)]
+    ax.set_title('Percentage of trains and cancellations per day')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Percentage of trains (%)')
+    ax.set_ylim(0, 100)
+    ax.legend()
 
-    # Symmetric color scale around zero (at least 1), so that the colors for absorbed and increased delay are comparable
-    limit = (
-        max(abs(valid_values.min()), abs(valid_values.max()), 1)
-        if len(valid_values) else 1
-    )
-
-    fig, ax = plt.subplots(figsize=(11, 8))
-    sns.heatmap(
-        heat_all,
-        cmap='RdBu_r',
-        center=0,
-        vmin=-limit,
-        vmax=limit,
-        annot=True,
-        fmt='.1f',
-        linewidths=0.5,
-        linecolor='white',
-        cbar_kws={
-            'label': 'Net delay change (minutes per train)'
-        },
-        ax=ax
-    )
-    ax.set_facecolor('lightgrey')
-    ax.set_xlabel('Scheduled dwell time at Utrecht Centraal (minutes)')
-    ax.set_ylabel('Departure hour')
-    ax.set_title(
-        '3.2.13: Net Delay Change by Dwell Time and Departure Hour'
-    )
     plt.tight_layout()
     plt.show()
