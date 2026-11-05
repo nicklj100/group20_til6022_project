@@ -143,6 +143,8 @@ Step 6: Open and run the main analysis notebook
 
     project_final_report.ipynb
 
+NOTE: Cell [1] takes 40+ seconds to run the first cycle.
+
 Run all cells in order to reproduce the complete data pipeline, analysis,
 statistical results, and visualizations.
 
