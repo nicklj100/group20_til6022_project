@@ -200,7 +200,7 @@ def punctuality_chart(df_train, df_weather):
     bar1 = ax2.bar(
         hourly.index, hourly_punctuality,
         label='Arrival punctuality',
-        color='tab:red', edgecolor='black',
+        color='tab:green', edgecolor='black',
         width=bar_width, alpha=0.7
     )
 

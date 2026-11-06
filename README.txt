@@ -2,6 +2,7 @@
 Weather Impact on the Operations of Utrecht Centraal Station
 TIL6022 - Python Programming
 Group Project (Group 20)
+Date of submission: 6-11-2026
 ================================================================================
 
 1. PROJECT OVERVIEW
@@ -34,8 +35,6 @@ Objectives:
 - Gijs van Vliet
 - Delano van den Bosch
 
-Note: Student IDs are omitted in compliance with TIL6022 repository guidelines.
-
 3. DATASETS & SOURCES
 ---------------------
 
@@ -62,7 +61,6 @@ https://www.rijdendetreinen.nl/open-data/treinarchief
 4. REPOSITORY STRUCTURE
 -----------------------
 
-.
 ├── data/
 │   ├── weather_selected.csv
 │   │   # KNMI hourly weather records -> initialized in data_import.py
@@ -77,18 +75,24 @@ https://www.rijdendetreinen.nl/open-data/treinarchief
 │   ├── weather_analysis.ipynb
 │   │   # Full data analysis on weather data
 │   ├── weather_comparison.py
-│   │   # Concatenated weather_comparison notebook for implementation in project_final_report
+│   │   # Concatenated weather_comparison notebook for implementation in final_report
 │   ├── weather_comparison.ipynb
 │   │   # Full data analysis on weather and train data
 │   ├── train_comparison.py
 │   │   # Comparison analysis for implementation in notebook
 │   ├── train_analysis.py
-│   │   # Concatenated train_analysis notebook for implementation in project_final_report
+│   │   # Concatenated train_analysis notebook for implementation in final_report
 │   └── train_analysis.ipynb
 │       # Full data analysis on train data
 │
-├── project_final_report.ipynb
+├── final_report.ipynb
 │   # Main Jupyter notebook containing the narrative and analysis
+│
+├── final_report.pdf
+│   # Main Jupyter notebook containing the narrative and analysis in pdf
+│
+├── research_proposal.pdf
+│   # Research proposal submitted in pdf
 │
 └── README.txt
     # Project documentation and reproduction guide
@@ -119,6 +123,8 @@ The complete project repository is available on GitHub:
 
 https://github.com/nicklj100/group20_til6022_project
 
+.pdf has final report in it, if you want to run the code:
+
 Step 1: Clone the repository
 
     git clone https://github.com/nicklj100/group20_til6022_project.git
@@ -134,7 +140,7 @@ Step 3: Install the required dependencies
 Step 4: Ensure that the required datasets are located in the data/ directory
 
     data/
-!    ├── weather_selected.csv
+     ├── weather_selected.csv
      └── traindata_total.csv
 
 Step 5: Start Jupyter Notebook
